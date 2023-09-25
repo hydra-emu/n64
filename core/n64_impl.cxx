@@ -87,7 +87,7 @@ namespace hydra::N64
         cpu_.mouse_y_ = y;
     }
 
-    void N64::SetAudioCallback(std::function<void(const std::vector<int16_t>&, int)> callback)
+    void N64::SetAudioCallback(void(*callback)(const int16_t*, uint32_t, int))
     {
         rcp_.ai_.SetAudioCallback(callback);
     }

@@ -3,7 +3,7 @@
 #include <bitset>
 #include <cassert>
 #include <common/compatibility.hxx>
-#include <common/log.hxx>
+#include <core/n64_log.hxx>
 #include <core/n64_addresses.hxx>
 #include <core/n64_rdp.hxx>
 #include <core/n64_rdp_commands.hxx>
@@ -12,7 +12,7 @@
 #include <functional>
 #include <iostream>
 #include <sstream>
-#include <str_hash.hxx>
+#include <common/str_hash.hxx>
 
 hydra_inline static uint32_t irand(uint32_t* state)
 {

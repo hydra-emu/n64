@@ -1,9 +1,8 @@
 #include <common/compatibility.hxx>
-#include <common/log.hxx>
+#include <core/n64_log.hxx>
 #include <core/n64_addresses.hxx>
 #include <core/n64_types.hxx>
 #include <core/n64_vi.hxx>
-#include <fmt/format.h>
 
 namespace hydra::N64
 {

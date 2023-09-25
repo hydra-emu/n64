@@ -2,7 +2,6 @@
 #include <common/compatibility.hxx>
 #include <core/n64_addresses.hxx>
 #include <core/n64_ai.hxx>
-#include <fmt/format.h>
 #include <fstream>
 #include <miniaudio.h>
 
@@ -135,13 +134,13 @@ namespace hydra::N64
                     ai_dma_addresses_[0] = ai_dma_addresses_[1];
                     ai_dma_lengths_[0] = ai_dma_lengths_[1];
                 }
-                audio_callback_(ai_buffer_, ai_frequency_);
+                audio_callback_(ai_buffer_.data(), ai_buffer_.size(), ai_frequency_);
                 ai_buffer_.clear();
             }
         }
     }
 
-    void Ai::SetAudioCallback(std::function<void(const std::vector<int16_t>&, int)> callback)
+    void Ai::SetAudioCallback(void(*callback)(const int16_t*, uint32_t, int))
     {
         audio_callback_ = callback;
     }

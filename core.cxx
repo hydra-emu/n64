@@ -1,12 +1,16 @@
 #include <common/core.h>
 #include <core/n64_impl.hxx>
+#include <core/n64_log.hxx>
 
 static bool ipl_loaded_ = false;
 static hydra::N64::N64* impl_ = nullptr;
-hydra_video_callback_t video_callback_ = nullptr;
+std::function<void(const uint8_t*, uint32_t, uint32_t)> video_callback_ = nullptr;
 hydra_audio_callback_t audio_callback_ = nullptr;
-hydra_poll_input_callback_t poll_input_callback_ = nullptr;
 hydra_read_input_callback_t read_input_callback_ = nullptr;
+
+const char* hc_name = "Nintendo 64";
+const char* hc_extensions = "z64,n64";
+int hc_max_players = 4;
 
 void hc_create()
 {
@@ -39,12 +43,7 @@ void hc_reset()
     impl_->Reset();
 }
 
-void hc_set_video_callback(hydra_video_callback_t callback)
-{
-    video_callback_ = callback;
-}
-
-static void audio_callback_wrapper(const std::vector<int16_t>& in, int frequency_in)
+static void audio_callback_wrapper(const int16_t* in, uint32_t in_size, int frequency_in)
 {
     ma_resampler_config config = ma_resampler_config_init(ma_format_s16, 2, frequency_in, 48000,
                                                           ma_resample_algorithm_linear);
@@ -68,11 +67,11 @@ static void audio_callback_wrapper(const std::vector<int16_t>& in, int frequency
         Logger::Fatal("Failed to create resampler: {}", static_cast<int>(res));
     }
 
-    ma_uint64 frames_in = in.size() >> 1;
+    ma_uint64 frames_in = in_size >> 1;
     ma_uint64 frames_out = (48000 / 60) * 2;
     std::vector<int16_t> temp;
     temp.resize(frames_out * 2);
-    ma_result result = ma_resampler_process_pcm_frames(&resampler, in.data(), &frames_in,
+    ma_result result = ma_resampler_process_pcm_frames(&resampler, in, &frames_in,
                                                        temp.data(), &frames_out);
     if (result != MA_SUCCESS)
     {
@@ -85,7 +84,7 @@ static void audio_callback_wrapper(const std::vector<int16_t>& in, int frequency
     audio_callback_(data.data(), frames_out);
 }
 
-int16_t read_input_callback_wrapper(int player, int button)
+static int8_t read_input_callback_wrapper(uint8_t player, uint8_t button)
 {
     int cbutton = 0;
     switch (button)
@@ -175,23 +174,31 @@ int16_t read_input_callback_wrapper(int player, int button)
     return read_input_callback_(player, cbutton);
 }
 
+void hc_set_video_callback(hydra_video_callback_t callback)
+{
+    video_callback_ = callback;
+}
+
 void hc_set_audio_callback(hydra_audio_callback_t callback)
 {
     audio_callback_ = callback;
-    impl_->SetAudioCallback(
-        std::bind(&audio_callback_wrapper, std::placeholders::_1, std::placeholders::_2));
+    impl_->SetAudioCallback(audio_callback_wrapper);
 }
 
 void hc_set_poll_input_callback(hydra_poll_input_callback_t callback)
 {
-    poll_input_callback_ = callback;
+    impl_->SetPollInputCallback(callback);
 }
 
 void hc_set_read_input_callback(hydra_read_input_callback_t callback)
 {
     read_input_callback_ = callback;
-    impl_->SetReadInputCallback(
-        std::bind(read_input_callback_wrapper, std::placeholders::_1, std::placeholders::_2));
+    impl_->SetReadInputCallback(read_input_callback_wrapper);
+}
+
+void hc_add_log_callback(const char* target, hydra_log_callback_t callback)
+{
+    Logger::HookCallback(target, callback);
 }
 
 void hc_run_frame()
@@ -203,5 +210,7 @@ void hc_run_frame()
 
     std::vector<uint8_t> data;
     impl_->RenderVideo(data);
-    video_callback_(data.data(), width, height);
+
+    if (data.size() != 0)
+        video_callback_(data.data(), width, height);
 }

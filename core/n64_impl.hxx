@@ -16,14 +16,14 @@ namespace hydra::N64
         void RunFrame();
         void Reset();
         void SetMousePos(int32_t x, int32_t y);
-        void SetAudioCallback(std::function<void(const std::vector<int16_t>&, int)> callback);
+        void SetAudioCallback(void(*callback)(const int16_t*, uint32_t, int));
 
-        void SetPollInputCallback(std::function<void()> callback)
+        void SetPollInputCallback(void(*callback)())
         {
             cpu_.poll_input_callback_ = callback;
         }
 
-        void SetReadInputCallback(std::function<int8_t(int, int, int)> callback)
+        void SetReadInputCallback(int8_t(*callback)(uint8_t, uint8_t))
         {
             cpu_.read_input_callback_ = callback;
         }

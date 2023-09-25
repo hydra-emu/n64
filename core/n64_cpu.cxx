@@ -79,7 +79,7 @@ namespace hydra::N64
         uint32_t crc = 0xFFFF'FFFF;
         for (int i = 0; i < 0x9c0; i++)
         {
-            crc = hydra::crc32_u8(crc, cart_rom_[i + 0x40]);
+            // crc = hydra::crc32_u8(crc, cart_rom_[i + 0x40]);
         }
         crc ^= 0xFFFF'FFFF;
 
@@ -181,8 +181,8 @@ namespace hydra::N64
             // uint32_t pifcrc = 0xFFFF'FFFF;
             for (int i = 0; i < 32; i++)
             {
-                gprcrc = hydra::crc32_u64(gprcrc, gpr_regs_[i].UD);
-                fprcrc = hydra::crc32_u64(fprcrc, fpr_regs_[i].UD);
+                // gprcrc = hydra::crc32_u64(gprcrc, gpr_regs_[i].UD);
+                // fprcrc = hydra::crc32_u64(fprcrc, fpr_regs_[i].UD);
             }
             for (int i = 0; i < 64; i++)
             {
@@ -805,22 +805,22 @@ namespace hydra::N64
         {
             case ControllerType::Joypad:
             {
-                result[0] = read_input_callback_(player, controller_int, Keys::A) << 7 |
-                            read_input_callback_(player, controller_int, Keys::B) << 6 |
-                            read_input_callback_(player, controller_int, Keys::Z) << 5 |
-                            read_input_callback_(player, controller_int, Keys::Start) << 4 |
-                            read_input_callback_(player, controller_int, Keys::KeypadUp) << 3 |
-                            read_input_callback_(player, controller_int, Keys::KeypadDown) << 2 |
-                            read_input_callback_(player, controller_int, Keys::KeypadLeft) << 1 |
-                            read_input_callback_(player, controller_int, Keys::KeypadRight);
-                result[1] = 0 | 0 | read_input_callback_(player, controller_int, Keys::L) << 5 |
-                            read_input_callback_(player, controller_int, Keys::R) << 4 |
-                            read_input_callback_(player, controller_int, Keys::CUp) << 3 |
-                            read_input_callback_(player, controller_int, Keys::CDown) << 2 |
-                            read_input_callback_(player, controller_int, Keys::CLeft) << 1 |
-                            read_input_callback_(player, controller_int, Keys::CRight);
-                result[2] = read_input_callback_(player, controller_int, Keys::AnalogHorizontal);
-                result[3] = read_input_callback_(player, controller_int, Keys::AnalogVertical);
+                result[0] = read_input_callback_(player, Keys::A) << 7 |
+                            read_input_callback_(player, Keys::B) << 6 |
+                            read_input_callback_(player, Keys::Z) << 5 |
+                            read_input_callback_(player, Keys::Start) << 4 |
+                            read_input_callback_(player, Keys::KeypadUp) << 3 |
+                            read_input_callback_(player, Keys::KeypadDown) << 2 |
+                            read_input_callback_(player, Keys::KeypadLeft) << 1 |
+                            read_input_callback_(player, Keys::KeypadRight);
+                result[1] = 0 | 0 | read_input_callback_(player, Keys::L) << 5 |
+                            read_input_callback_(player, Keys::R) << 4 |
+                            read_input_callback_(player, Keys::CUp) << 3 |
+                            read_input_callback_(player, Keys::CDown) << 2 |
+                            read_input_callback_(player, Keys::CLeft) << 1 |
+                            read_input_callback_(player, Keys::CRight);
+                result[2] = read_input_callback_(player, Keys::AnalogHorizontal);
+                result[3] = read_input_callback_(player, Keys::AnalogVertical);
                 break;
             }
             case ControllerType::Mouse:

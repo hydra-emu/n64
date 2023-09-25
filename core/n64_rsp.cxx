@@ -1,10 +1,9 @@
 #include <algorithm>
 #include <common/compatibility.hxx>
-#include <common/log.hxx>
+#include <core/n64_log.hxx>
 #include <core/n64_addresses.hxx>
 #include <core/n64_rdp.hxx>
 #include <core/n64_rsp.hxx>
-#include <fmt/format.h>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -175,10 +174,10 @@ namespace hydra::N64
             // uint32_t memcrc = 0xFFFF'FFFF;
             for (int i = 0; i < 32; i++)
             {
-                gprcrc = hydra::crc32_u64(gprcrc, gpr_regs_[i].UW);
+                // gprcrc = hydra::crc32_u64(gprcrc, gpr_regs_[i].UW);
                 for (int j = 0; j < 8; j++)
                 {
-                    veccrc = hydra::crc32_u16(veccrc, vu_regs_[i][j]);
+                    // veccrc = hydra::crc32_u16(veccrc, vu_regs_[i][j]);
                 }
             }
             // for (int i = 0; i < 0x1000; i += 4)

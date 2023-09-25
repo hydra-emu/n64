@@ -6,7 +6,7 @@
 #include <chrono>
 #include <cmath>
 #include <common/compatibility.hxx>
-#include <common/log.hxx>
+#include <core/n64_log.hxx>
 #include <concepts>
 #include <core/n64_addresses.hxx>
 #include <core/n64_rcp.hxx>
@@ -543,7 +543,7 @@ namespace hydra::N64
         uint32_t get_dram_crc();
 
         std::function<void()> poll_input_callback_;
-        std::function<int8_t(int, int, int)> read_input_callback_;
+        std::function<int8_t(uint8_t, uint8_t)> read_input_callback_;
 
         friend class hydra::N64::N64;
     };
