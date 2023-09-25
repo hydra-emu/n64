@@ -8,10 +8,6 @@ std::function<void(const uint8_t*, uint32_t, uint32_t)> video_callback_ = nullpt
 hydra_audio_callback_t audio_callback_ = nullptr;
 hydra_read_input_callback_t read_input_callback_ = nullptr;
 
-const char* hc_name = "Nintendo 64";
-const char* hc_extensions = "z64,n64";
-int hc_max_players = 4;
-
 void hc_create()
 {
     impl_ = new hydra::N64::N64();
@@ -22,9 +18,38 @@ void hc_destroy()
     delete impl_;
 }
 
+const char* hc_get_emulator_info(hc_emu_info info)
+{
+    switch (info)
+    {
+        case HC_INFO_CORE_NAME:
+            return "n64hydra";
+        case HC_INFO_SYSTEM_NAME:
+            return "Nintendo 64";
+        case HC_INFO_AUTHOR:
+            return "OFFTKP";
+        case HC_INFO_VERSION:
+            return "0.1";
+        case HC_INFO_LICENSE:
+            return "MIT";
+        case HC_INFO_URL:
+            return "https://github.com/hydra-emu/n64";
+        case HC_INFO_EXTENSIONS:
+            return "z64,n64";
+        case HC_INFO_DESCRIPTION:   
+            return "Nintendo 64 emulator for hydra";
+        case HC_INFO_MAX_PLAYERS:
+            return "4";
+        case HC_INFO_FIRMWARE_FILES:
+            return "IPL";
+        default:
+            return nullptr;
+    }
+}
+
 bool hc_load_file(const char* type, const char* path)
 {
-    if (std::string(type) == "ipl")
+    if (std::string(type) == "IPL")
     {
         ipl_loaded_ = impl_->LoadIPL(path);
         return ipl_loaded_;
