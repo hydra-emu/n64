@@ -1,4 +1,4 @@
-#include <common/core.h>
+#include <hydra_core/core.h>
 #include <core/n64_impl.hxx>
 #include <core/n64_log.hxx>
 
@@ -239,3 +239,5 @@ void hc_run_frame()
     if (data.size() != 0)
         video_callback_(data.data(), width, height);
 }
+
+void hc_set_other(hc_other, void*) {}

@@ -4,3 +4,6 @@
 [submodule "vendored/fmt"]
 	path = vendored/fmt
 	url = https://github.com/fmtlib/fmt
+[submodule "hydra_core"]
+	path = hydra_core
+	url = https://github.com/hydra-emu/core
