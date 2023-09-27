@@ -3,22 +3,21 @@
 #include <core/n64_log.hxx>
 
 static bool ipl_loaded_ = false;
-static hydra::N64::N64* impl_ = nullptr;
 std::function<void(const uint8_t*, uint32_t, uint32_t)> video_callback_ = nullptr;
-hydra_audio_callback_t audio_callback_ = nullptr;
-hydra_read_input_callback_t read_input_callback_ = nullptr;
+hc_audio_callback_t audio_callback_ = nullptr;
+hc_read_input_callback_t read_input_callback_ = nullptr;
 
-void hc_create()
+hc_core_t hc_create()
 {
-    impl_ = new hydra::N64::N64();
+    return new hydra::N64::N64();
 }
 
-void hc_destroy()
+void hc_destroy(hc_core_t core)
 {
-    delete impl_;
+    delete (hydra::N64::N64*)core;
 }
 
-const char* hc_get_emulator_info(hc_emu_info info)
+const char* hc_get_info(hc_info info)
 {
     switch (info)
     {
@@ -47,25 +46,27 @@ const char* hc_get_emulator_info(hc_emu_info info)
     }
 }
 
-bool hc_load_file(const char* type, const char* path)
+bool hc_load_file(hc_core_t core, const char* type, const char* path)
 {
+    hydra::N64::N64* emu = static_cast<hydra::N64::N64*>(core);
     if (std::string(type) == "IPL")
     {
-        ipl_loaded_ = impl_->LoadIPL(path);
+        ipl_loaded_ = emu->LoadIPL(path);
         return ipl_loaded_;
     }
     else if (std::string(type) == "rom")
     {
         if (!ipl_loaded_)
             return false;
-        return impl_->LoadCartridge(path);
+        return emu->LoadCartridge(path);
     }
     return false;
 }
 
-void hc_reset()
+void hc_reset(hc_core_t core)
 {
-    impl_->Reset();
+    hydra::N64::N64* emu = static_cast<hydra::N64::N64*>(core);
+    emu->Reset();
 }
 
 static void audio_callback_wrapper(const int16_t* in, uint32_t in_size, int frequency_in)
@@ -112,132 +113,136 @@ static void audio_callback_wrapper(const int16_t* in, uint32_t in_size, int freq
 static int8_t read_input_callback_wrapper(uint8_t player, uint8_t button)
 {
     int cbutton = 0;
-    switch (button)
-    {
-        case hydra::N64::Keys::A:
-        {
-            cbutton = InputButton::A;
-            break;
-        }
-        case hydra::N64::Keys::B:
-        {
-            cbutton = InputButton::B;
-            break;
-        }
-        case hydra::N64::Keys::Z:
-        {
-            cbutton = InputButton::Z;
-            break;
-        }
-        case hydra::N64::Keys::Start:
-        {
-            cbutton = InputButton::Start;
-            break;
-        }
-        case hydra::N64::Keys::CUp:
-        {
-            cbutton = InputButton::DPadUp_1;
-            break;
-        }
-        case hydra::N64::Keys::CDown:
-        {
-            cbutton = InputButton::DPadDown_1;
-            break;
-        }
-        case hydra::N64::Keys::CLeft:
-        {
-            cbutton = InputButton::DPadLeft_1;
-            break;
-        }
-        case hydra::N64::Keys::CRight:
-        {
-            cbutton = InputButton::DPadRight_1;
-            break;
-        }
-        case hydra::N64::Keys::L:
-        {
-            cbutton = InputButton::L1;
-            break;
-        }
-        case hydra::N64::Keys::R:
-        {
-            cbutton = InputButton::R1;
-            break;
-        }
-        case hydra::N64::Keys::KeypadUp:
-        {
-            cbutton = InputButton::DPadUp_0;
-            break;
-        }
-        case hydra::N64::Keys::KeypadDown:
-        {
-            cbutton = InputButton::DPadDown_0;
-            break;
-        }
-        case hydra::N64::Keys::KeypadLeft:
-        {
-            cbutton = InputButton::DPadLeft_0;
-            break;
-        }
-        case hydra::N64::Keys::KeypadRight:
-        {
-            cbutton = InputButton::DPadRight_0;
-            break;
-        }
-        case hydra::N64::Keys::AnalogHorizontal:
-        {
-            cbutton = InputButton::AnalogHorizontal_0;
-            break;
-        }
-        case hydra::N64::Keys::AnalogVertical:
-        {
-            cbutton = InputButton::AnalogVertical_0;
-            break;
-        }
-    }
+    // switch (button)
+    // {
+    //     case hydra::N64::Keys::A:
+    //     {
+    //         cbutton = InputButton::A;
+    //         break;
+    //     }
+    //     case hydra::N64::Keys::B:
+    //     {
+    //         cbutton = InputButton::B;
+    //         break;
+    //     }
+    //     case hydra::N64::Keys::Z:
+    //     {
+    //         cbutton = InputButton::Z;
+    //         break;
+    //     }
+    //     case hydra::N64::Keys::Start:
+    //     {
+    //         cbutton = InputButton::Start;
+    //         break;
+    //     }
+    //     case hydra::N64::Keys::CUp:
+    //     {
+    //         cbutton = InputButton::DPadUp_1;
+    //         break;
+    //     }
+    //     case hydra::N64::Keys::CDown:
+    //     {
+    //         cbutton = InputButton::DPadDown_1;
+    //         break;
+    //     }
+    //     case hydra::N64::Keys::CLeft:
+    //     {
+    //         cbutton = InputButton::DPadLeft_1;
+    //         break;
+    //     }
+    //     case hydra::N64::Keys::CRight:
+    //     {
+    //         cbutton = InputButton::DPadRight_1;
+    //         break;
+    //     }
+    //     case hydra::N64::Keys::L:
+    //     {
+    //         cbutton = InputButton::L1;
+    //         break;
+    //     }
+    //     case hydra::N64::Keys::R:
+    //     {
+    //         cbutton = InputButton::R1;
+    //         break;
+    //     }
+    //     case hydra::N64::Keys::KeypadUp:
+    //     {
+    //         cbutton = InputButton::DPadUp_0;
+    //         break;
+    //     }
+    //     case hydra::N64::Keys::KeypadDown:
+    //     {
+    //         cbutton = InputButton::DPadDown_0;
+    //         break;
+    //     }
+    //     case hydra::N64::Keys::KeypadLeft:
+    //     {
+    //         cbutton = InputButton::DPadLeft_0;
+    //         break;
+    //     }
+    //     case hydra::N64::Keys::KeypadRight:
+    //     {
+    //         cbutton = InputButton::DPadRight_0;
+    //         break;
+    //     }
+    //     case hydra::N64::Keys::AnalogHorizontal:
+    //     {
+    //         cbutton = InputButton::AnalogHorizontal_0;
+    //         break;
+    //     }
+    //     case hydra::N64::Keys::AnalogVertical:
+    //     {
+    //         cbutton = InputButton::AnalogVertical_0;
+    //         break;
+    //     }
+    // }
 
     return read_input_callback_(player, cbutton);
 }
 
-void hc_set_video_callback(hydra_video_callback_t callback)
+void hc_set_video_callback(hc_core_t core, hc_video_callback_t callback)
 {
     video_callback_ = callback;
 }
 
-void hc_set_audio_callback(hydra_audio_callback_t callback)
+void hc_set_audio_callback(hc_core_t core, hc_audio_callback_t callback)
 {
+    hydra::N64::N64* emu = static_cast<hydra::N64::N64*>(core);
     audio_callback_ = callback;
-    impl_->SetAudioCallback(audio_callback_wrapper);
+    emu->SetAudioCallback(audio_callback_wrapper);
 }
 
-void hc_set_poll_input_callback(hydra_poll_input_callback_t callback)
+void hc_set_poll_input_callback(hc_core_t core, hc_poll_input_callback_t callback)
 {
-    impl_->SetPollInputCallback(callback);
+    hydra::N64::N64* emu = static_cast<hydra::N64::N64*>(core);
+    emu->SetPollInputCallback(callback);
 }
 
-void hc_set_read_input_callback(hydra_read_input_callback_t callback)
+void hc_set_read_input_callback(hc_core_t core, hc_read_input_callback_t callback)
 {
+    hydra::N64::N64* emu = static_cast<hydra::N64::N64*>(core);
     read_input_callback_ = callback;
-    impl_->SetReadInputCallback(read_input_callback_wrapper);
+    emu->SetReadInputCallback(read_input_callback_wrapper);
 }
 
-void hc_add_log_callback(const char* target, hydra_log_callback_t callback)
+void hc_add_log_callback(hc_core_t core, const char* target, hc_log_callback_t callback)
 {
     Logger::HookCallback(target, callback);
 }
 
-void hc_run_frame()
+void hc_run_frame(hc_core_t core)
 {
-    impl_->RunFrame();
+    hydra::N64::N64* emu = static_cast<hydra::N64::N64*>(core);
+    emu->RunFrame();
 
-    uint32_t width = impl_->GetWidth();
-    uint32_t height = impl_->GetHeight();
+    uint32_t width = emu->GetWidth();
+    uint32_t height = emu->GetHeight();
 
     std::vector<uint8_t> data;
-    impl_->RenderVideo(data);
+    emu->RenderVideo(data);
 
     if (data.size() != 0)
         video_callback_(data.data(), width, height);
 }
 
-void hc_set_other(hc_other, void*) {}
+void hc_set_other(hc_core_t, hc_other, void*) {}
