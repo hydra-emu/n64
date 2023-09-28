@@ -245,4 +245,4 @@ void hc_run_frame(hc_core_t core)
         video_callback_(data.data(), width, height);
 }
 
-void hc_set_other(hc_core_t, hc_other, void*) {}
+void hc_set_read_other_callback(hc_read_other_callback_t callback) {}
