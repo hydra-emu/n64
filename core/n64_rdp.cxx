@@ -13,6 +13,7 @@
 #include <iostream>
 #include <sstream>
 #include <common/str_hash.hxx>
+#include <common/hsystem.h>
 
 hydra_inline static uint32_t irand(uint32_t* state)
 {

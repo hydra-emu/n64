@@ -11,6 +11,7 @@
 #include <limits>
 #include <random>
 #include <sstream>
+#include <hydra_core/core.h>
 
 #define CPU_LOGGING false
 
@@ -805,27 +806,32 @@ namespace hydra::N64
         {
             case ControllerType::Joypad:
             {
-                result[0] = read_input_callback_(player, Keys::A) << 7 |
-                            read_input_callback_(player, Keys::B) << 6 |
-                            read_input_callback_(player, Keys::Z) << 5 |
-                            read_input_callback_(player, Keys::Start) << 4 |
-                            read_input_callback_(player, Keys::KeypadUp) << 3 |
-                            read_input_callback_(player, Keys::KeypadDown) << 2 |
-                            read_input_callback_(player, Keys::KeypadLeft) << 1 |
-                            read_input_callback_(player, Keys::KeypadRight);
-                result[1] = 0 | 0 | read_input_callback_(player, Keys::L) << 5 |
-                            read_input_callback_(player, Keys::R) << 4 |
-                            read_input_callback_(player, Keys::CUp) << 3 |
-                            read_input_callback_(player, Keys::CDown) << 2 |
-                            read_input_callback_(player, Keys::CLeft) << 1 |
-                            read_input_callback_(player, Keys::CRight);
-                result[2] = read_input_callback_(player, Keys::AnalogHorizontal);
-                result[3] = read_input_callback_(player, Keys::AnalogVertical);
+                result[0] = !!read_input_callback_(player, HC_INPUT_A) << 7 |
+                            !!read_input_callback_(player, HC_INPUT_B) << 6 |
+                            !!read_input_callback_(player, HC_INPUT_Z) << 5 |
+                            !!read_input_callback_(player, HC_INPUT_START) << 4 |
+                            !!read_input_callback_(player, HC_INPUT_UP) << 3 |
+                            !!read_input_callback_(player, HC_INPUT_DOWN) << 2 |
+                            !!read_input_callback_(player, HC_INPUT_LEFT) << 1 |
+                            !!read_input_callback_(player, HC_INPUT_RIGHT);
+                result[1] = 0 | 0 | !!read_input_callback_(player, HC_INPUT_L1) << 5 |
+                            !!read_input_callback_(player, HC_INPUT_R1) << 4 |
+                            0;
+                            // read_input_callback_(player, HC_INPUT_CUp) << 3 |
+                            // read_input_callback_(player, HC_INPUT_CDown) << 2 |
+                            // read_input_callback_(player, HC_INPUT_CLeft) << 1 |
+                            // read_input_callback_(player, HC_INPUT_CRight);
+                int8_t x = -read_input_callback_(player, HC_INPUT_RIGHT_ANALOG_LEFT) +
+                           read_input_callback_(player, HC_INPUT_RIGHT_ANALOG_RIGHT);
+                int8_t y = -read_input_callback_(player, HC_INPUT_RIGHT_ANALOG_DOWN) +
+                            read_input_callback_(player, HC_INPUT_RIGHT_ANALOG_UP);
+                result[2] = x;
+                result[3] = y;
                 break;
             }
             case ControllerType::Mouse:
             {
-                // result[0] = key_state_[Keys::A] << 7 | key_state_[Keys::B] << 6;
+                // result[0] = key_state_[HC_INPUT_A] << 7 | key_state_[HC_INPUT_B] << 6;
                 // result[1] = 0;
                 // result[2] = mouse_delta_x_ << 2;
                 // result[3] = mouse_delta_y_ << 2;
