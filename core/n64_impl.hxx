@@ -2,7 +2,6 @@
 
 #include <core/n64_cpu.hxx>
 #include <core/n64_rcp.hxx>
-#include <miniaudio.h>
 #include <string>
 
 namespace hydra::N64

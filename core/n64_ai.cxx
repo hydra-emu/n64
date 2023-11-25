@@ -1,9 +1,8 @@
 #include <algorithm>
-#include <common/compatibility.hxx>
+#include <cstdint>
 #include <core/n64_addresses.hxx>
 #include <core/n64_ai.hxx>
 #include <fstream>
-#include <miniaudio.h>
 
 namespace hydra::N64
 {
@@ -117,8 +116,8 @@ namespace hydra::N64
             uint32_t data = *reinterpret_cast<uint32_t*>(rdram_ptr_ + address);
             int16_t left = (static_cast<int16_t>(data >> 16));
             int16_t right = (static_cast<int16_t>(data & 0xffff));
-            ai_buffer_.push_back(bswap16(left));
-            ai_buffer_.push_back(bswap16(right));
+            ai_buffer_.push_back(left << 8 | left >> 8);
+            ai_buffer_.push_back(right << 8 | right >> 8);
             if (ai_buffer_.size() > 200000)
             {
                 Logger::Fatal("AI buffer overflow");
