@@ -132,12 +132,12 @@ namespace hydra::N64
     void CPUBus::map_direct_addresses()
     {
         // https://wheremyfoodat.github.io/software-fastmem/
-        const uint32_t PAGE_SIZE = 0x10000;
+        constexpr uint32_t N64_PAGE_SIZE = 0x10000;
 #define ADDR_TO_PAGE(addr) ((addr) >> 16)
         // Map rdram
         for (int i = 0; i < ADDR_TO_PAGE(0x800'000); i++)
         {
-            page_table_[i] = &rdram_[PAGE_SIZE * i];
+            page_table_[i] = &rdram_[N64_PAGE_SIZE * i];
         }
         page_table_[ADDR_TO_PAGE(0x04000000)] = &rcp_.rsp_.mem_[0];
 
@@ -149,7 +149,7 @@ namespace hydra::N64
         // Map cartridge rom
         for (int i = ADDR_TO_PAGE(0x1000'0000); i <= ADDR_TO_PAGE(0x1FBF'0000); i++)
         {
-            page_table_[i] = &cart_rom_[PAGE_SIZE * (i - ADDR_TO_PAGE(0x1000'0000))];
+            page_table_[i] = &cart_rom_[N64_PAGE_SIZE * (i - ADDR_TO_PAGE(0x1000'0000))];
         }
         page_table_[ADDR_TO_PAGE(ISVIEWER_AREA_START)] = nullptr;
 #undef ADDR_TO_PAGE

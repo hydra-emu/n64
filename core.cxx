@@ -1,26 +1,75 @@
+#include <cstdint>
 #include <hydra/core.hxx>
+#include <n64_impl.hxx>
 
-class HydraCore : public hydra::IBase
+class HydraCore : public hydra::IBase, public hydra::ISoftwareRendered, public hydra::IFrontendDriven
 {
     HYDRA_CLASS
 public:
-    bool loadFile(const char* type, const char* rom) override;
-    void reset() override;
-    hydra::Size getNativeSize() override;
-    void setOutputSize(hydra::Size size) override;
+    HydraCore()
+    {
+        n64.SetPollInputCallback([]() {});
+        n64.SetReadInputCallback([](uint8_t, uint8_t) { return int8_t(0); });
+        n64.SetAudioCallback([](const int16_t*, uint32_t, int) {});
+    }
+
+    // IBase
+    bool loadFile(const char* type, const char* rom) override
+    {
+        printf("Loading %s: %s\n", type, rom);
+        std::string stype = type;
+        if (stype == "rom")
+        {
+            n64.LoadCartridge(rom);
+            return true;
+        }
+        else if (stype == "bios")
+        {
+            n64.LoadIPL(rom);
+            return true;
+        }
+        return false;
+    }
+    void reset() override
+    {
+        n64.Reset();
+    }
+    hydra::Size getNativeSize() override
+    {
+        return { (uint32_t)n64.GetWidth(), (uint32_t)n64.GetHeight() };
+    }
+    void setOutputSize(hydra::Size size) override {}
+
+    // ISoftwareRendered
+    void setVideoCallback(void (*callback)(void* data, hydra::Size size)) override { video_callback = callback; };
+
+    // IFrontendDriven
+    void runFrame() override
+    {
+        n64.RunFrame();
+        std::vector<uint8_t> data;
+        n64.RenderVideo(data);
+        video_callback(data.data(), { (uint32_t)n64.GetWidth(), (uint32_t)n64.GetHeight() });
+    }
+
+    uint16_t getFps() override { return 60; };
+
+private:
+    hydra::N64::N64 n64;
+    void (*video_callback)(void* data, hydra::Size size) = nullptr;
 };
 
-HC_GLOBAL hydra::IBase* createEmulator()
+HC_API hydra::IBase* createEmulator()
 {
     return new HydraCore;
 }
 
-HC_GLOBAL void destroyEmulator(hydra::IBase* emulator)
+HC_API void destroyEmulator(hydra::IBase* emulator)
 {
     delete emulator;
 }
 
-HC_GLOBAL const char* getInfo(hydra::InfoType type)
+HC_API const char* getInfo(hydra::InfoType type)
 {
     switch (type)
     {
@@ -32,14 +81,22 @@ HC_GLOBAL const char* getInfo(hydra::InfoType type)
         return "1.0";
     case hydra::InfoType::Author:
         return "OFFTKP";
+    case hydra::InfoType::Website:
+        return "todo: add me";
     case hydra::InfoType::Description:
         return "An n64 emulator";
     case hydra::InfoType::Extensions:
         return "z64";
     case hydra::InfoType::License:
         return "MIT";
-    case hydra::InfoType::Firmware:
-        return "IPL";
+    case hydra::InfoType::Settings:
+        return R"(
+            [bios]
+            type = "filepicker"
+            name = "IPL3"
+            description = "The IPL is required to run games"
+            required = true
+        )";
     default:
         return nullptr;
     }

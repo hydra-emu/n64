@@ -342,6 +342,12 @@ namespace hydra::N64
                 int sl = command.SL;
                 int sh = command.SH;
 
+                int skip_accumulator = 0;
+                int skip = tile.line_width;
+
+                uint16_t dxt_accumulator = 0;
+                uint16_t dxt = command.DxT;
+
                 switch (texture_pixel_size_latch_)
                 {
                     case 16:
@@ -353,8 +359,14 @@ namespace hydra::N64
                             uint64_t src = *reinterpret_cast<uint64_t*>(
                                 &rdram_ptr_[texture_dram_address_latch_ + i]);
                             uint8_t* dst =
-                                reinterpret_cast<uint8_t*>(&tmem_[tile.tmem_address + i]);
+                                reinterpret_cast<uint8_t*>(&tmem_[tile.tmem_address + i + skip_accumulator]);
                             memcpy(dst, &src, 8);
+                            dxt_accumulator += dxt;
+                            if (dxt_accumulator & 0b1'00000000000)
+                            {
+                                skip_accumulator += skip;
+                                dxt_accumulator &= 0b11111111111;
+                            }
                         }
                         break;
                     }
@@ -374,6 +386,12 @@ namespace hydra::N64
                                 dst[j + 1] = src >> (48 - j * 16);
                                 dst[j + 2] = src >> (40 - j * 16);
                                 dst[j + 3] = src >> (32 - j * 16);
+                            }
+                            dxt_accumulator += dxt;
+                            if (dxt_accumulator & 0b1'00000000000)
+                            {
+                                skip_accumulator += skip;
+                                dxt_accumulator &= 0b11111111111;
                             }
                         }
                         break;
@@ -1386,10 +1404,6 @@ namespace hydra::N64
                             texture_dram_address_latch_ + (y * texture_width_latch_ + x) * 2;
                         tmem_offset = (td.tmem_address + ((y - y_start) * td.line_width) +
                                        ((x - x_start) * 2));
-                        if (y & 1)
-                        {
-                            tmem_offset ^= 0b10;
-                        }
                         tmem_.at(tmem_offset) = rdram_ptr_[dram_offset];
                         tmem_.at(tmem_offset + 1) = rdram_ptr_[dram_offset + 1];
                     }
