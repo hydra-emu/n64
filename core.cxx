@@ -2,14 +2,12 @@
 #include <hydra/core.hxx>
 #include <n64_impl.hxx>
 
-class HydraCore : public hydra::IBase, public hydra::ISoftwareRendered, public hydra::IFrontendDriven
+class HydraCore : public hydra::IBase, public hydra::ISoftwareRendered, public hydra::IFrontendDriven, public hydra::IInput
 {
     HYDRA_CLASS
 public:
     HydraCore()
     {
-        n64.SetPollInputCallback([]() {});
-        n64.SetReadInputCallback([](uint8_t, uint8_t) { return int8_t(0); });
         n64.SetAudioCallback([](const int16_t*, uint32_t, int) {});
     }
 
@@ -54,6 +52,16 @@ public:
 
     uint16_t getFps() override { return 60; };
 
+    void setPollInputCallback(void (*callback)()) override
+    {
+        n64.SetPollInputCallback(callback);
+    }
+
+    void setCheckButtonCallback(int32_t (*callback)(uint32_t, hydra::ButtonType)) override
+    {
+        n64.SetReadInputCallback(callback);
+    }
+
 private:
     hydra::N64::N64 n64;
     void (*video_callback)(void* data, hydra::Size size) = nullptr;
@@ -86,7 +94,7 @@ HC_API const char* getInfo(hydra::InfoType type)
     case hydra::InfoType::Description:
         return "An n64 emulator";
     case hydra::InfoType::Extensions:
-        return "z64";
+        return "z64,N64";
     case hydra::InfoType::License:
         return "MIT";
     case hydra::InfoType::Settings:

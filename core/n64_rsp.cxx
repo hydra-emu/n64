@@ -4,6 +4,7 @@
 #include <core/n64_addresses.hxx>
 #include <core/n64_rdp.hxx>
 #include <core/n64_rsp.hxx>
+#include <cstdint>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -203,6 +204,7 @@ namespace hydra::N64
     RSP::RSP()
     {
         status_.halt = true;
+        mem_.fill(0);
     }
 
     void RSP::Reset()
@@ -221,10 +223,11 @@ namespace hydra::N64
         div_in_ready_ = false;
         instruction_.full = 0;
         mem_addr_ = 0;
+        pending_mem_addr_ = 0;
         dma_imem_ = false;
         rdram_addr_ = 0;
-        rd_len_ = 0;
-        wr_len_ = 0;
+        pending_rdram_addr_ = 0;
+        dma_len_ = 0;
         pc_ = 0;
         next_pc_ = 4;
         semaphore_ = false;
@@ -312,72 +315,63 @@ namespace hydra::N64
         gpr_regs_[reg].UW = pc_ + 4;
     }
 
-    void RSP::read_dma()
+    inline void dma(uint8_t*& dest, uint8_t*& source, uint32_t& dma_len, bool dma_imem, bool rdram_to_mem)
     {
-        auto bytes_per_row = (rd_len_ & 0xFFF) + 1;
-        bytes_per_row = (bytes_per_row + 0x7) & ~0x7;
-        uint32_t row_count = (rd_len_ >> 12) & 0xFF;
-        uint32_t row_stride = (rd_len_ >> 20) & 0xFFF;
-        auto rdram_index = rdram_addr_ & 0xFFFFF8;
-        auto rsp_index = mem_addr_ & 0xFF8;
-        uint8_t* dest = dma_imem_ ? &mem_[0x1000] : &mem_[0];
-        uint8_t* source = rdram_ptr_;
+        uint32_t bytes_per_row = dma_len & 0xFFF;
+        uint32_t row_count = (dma_len >> 12) & 0xFF;
+        uint32_t row_stride = (dma_len >> 20) & 0xFF8;
 
-        for (uint32_t i = 0; i < row_count + 1; i++)
-        {
-            for (uint32_t j = 0; j < bytes_per_row; j++)
+        do {
+            for (uint32_t j = 0; j <= bytes_per_row; j+=8)
             {
-                dest[rsp_index++] = source[rdram_index++];
+                memcpy(dest, source, 8);
+                dest += 8;
+                source += 8;
             }
-            rdram_index += row_stride;
-            rdram_index &= 0xFFFFF8;
-            rsp_index &= 0xFF8;
-        }
 
-        mem_addr_ = rsp_index;
-        mem_addr_ |= dma_imem_ ? 0x1000 : 0;
-        rdram_addr_ = rdram_index;
+            if (row_count == 0) {
+                break;
+            }
+            row_count--;
+            if (rdram_to_mem) {
+                source += row_stride;
+            } else {
+                dest += row_stride;
+            }
+        } while (1);
+
         // After the DMA transfer is finished, this field contains the value 0xFF8
         // The reason is that the field is internally decremented by 8 for each transferred word
         // so the final value will be -8 (in hex, 0xFF8)
-        rd_len_ = (row_stride << 20) | 0xFF8;
+        dma_len = (row_stride << 20) | 0xFF8;
+    }
 
-        if constexpr (RSP_LOGGING)
-        {
-            // printf("RSP: copied %d bytes\n", copy);
-            // dump_mem();
-        }
+    void RSP::read_dma()
+    {
+        rdram_addr_ = pending_rdram_addr_;
+        mem_addr_ = pending_mem_addr_;
+        uint8_t* dest = dma_imem_ ? &mem_[0x1000] : &mem_[0];
+        uint8_t* source = rdram_ptr_;
+        dest = &dest[mem_addr_ & 0xFF8];
+        source = &source[rdram_addr_ & 0xFFFFF8];
+        dma(dest, source, dma_len_, dma_imem_, true);
+        mem_addr_ = (uint64_t)(dest - &mem_[0]);
+        mem_addr_ |= dma_imem_ ? 0x1000 : 0;
+        rdram_addr_ = (uint64_t)(source - rdram_ptr_);
     }
 
     void RSP::write_dma()
     {
-        auto bytes_per_row = (wr_len_ & 0xFFF) + 1;
-        bytes_per_row = (bytes_per_row + 0x7) & ~0x7;
-        uint32_t row_count = (wr_len_ >> 12) & 0xFF;
-        uint32_t row_stride = (wr_len_ >> 20) & 0xFFF;
-        auto rdram_index = rdram_addr_ & 0xFFFFF8;
-        auto rsp_index = mem_addr_ & 0xFF8;
+        rdram_addr_ = pending_rdram_addr_;
+        mem_addr_ = pending_mem_addr_;
         uint8_t* dest = rdram_ptr_;
         uint8_t* source = dma_imem_ ? &mem_[0x1000] : &mem_[0];
-
-        for (uint32_t i = 0; i < row_count + 1; i++)
-        {
-            for (uint32_t j = 0; j < bytes_per_row; j++)
-            {
-                dest[rdram_index++] = source[rsp_index++];
-            }
-            rdram_index += row_stride;
-            rdram_index &= 0xFFFFF8;
-            rsp_index &= 0xFF8;
-        }
-
-        mem_addr_ = rsp_index;
+        dest = &dest[rdram_addr_ & 0xFFFFF8];
+        source = &source[mem_addr_ & 0xFF8];
+        dma(dest, source, dma_len_, dma_imem_, false);
+        mem_addr_ = (uint64_t)(source - &mem_[0]);
         mem_addr_ |= dma_imem_ ? 0x1000 : 0;
-        rdram_addr_ = rdram_index;
-        // After the DMA transfer is finished, this field contains the value 0xFF8
-        // The reason is that the field is internally decremented by 8 for each transferred word
-        // so the final value will be -8 (in hex, 0xFF8)
-        wr_len_ = (row_stride << 20) | 0xFF8;
+        rdram_addr_ = (uint64_t)(dest - rdram_ptr_);
     }
 
     void RSP::dump_mem()
@@ -397,24 +391,24 @@ namespace hydra::N64
         {
             case RSPHWIO::Cache:
             {
-                mem_addr_ = data & 0b1111'1111'1111;
+                pending_mem_addr_ = data & 0b1111'1111'1111;
                 dma_imem_ = data & 0b1'0000'0000'0000;
                 break;
             }
             case RSPHWIO::DramAddr:
             {
-                rdram_addr_ = data & 0b111'1111'1111'1111'1111'1111;
+                pending_rdram_addr_ = data & 0b111'1111'1111'1111'1111'1111;
                 break;
             }
             case RSPHWIO::RdLen:
             {
-                rd_len_ = data;
+                dma_len_ = data;
                 read_dma();
                 break;
             }
             case RSPHWIO::WrLen:
             {
-                wr_len_ = data;
+                dma_len_ = data;
                 write_dma();
                 break;
             }
@@ -505,9 +499,9 @@ namespace hydra::N64
             case RSPHWIO::DramAddr:
                 return rdram_addr_;
             case RSPHWIO::RdLen:
-                return rd_len_;
+                return dma_len_;
             case RSPHWIO::WrLen:
-                return wr_len_;
+                return dma_len_;
             case RSPHWIO::Status:
                 return status_.full;
             case RSPHWIO::Full:
@@ -695,7 +689,7 @@ namespace hydra::N64
         switch (instruction_.WCType.opcode)
         {
             case 0x0:
-                return LBV();
+                exit(1); return LBV();
             case 0x1:
                 return LSV();
             case 0x2:
@@ -872,26 +866,20 @@ namespace hydra::N64
 
     void RSP::STV()
     {
-        int reg = instruction_.WCType.vt;
-        int lane = instruction_.WCType.element;
+        int vt = instruction_.WCType.vt;
+        int e = instruction_.WCType.element;
         uint32_t address = gpr_regs_[instruction_.WCType.base].UW +
                            (static_cast<int8_t>(instruction_.WCType.offset << 1) << 3);
-
-        for (int i = 0; i < 16; i += 2)
-        {
-            uint16_t a = (address & 0xFF0) + ((address + i) & 0xF);
-            uint16_t b = ((lane + i) & 0xF) / 2;
-            store_byte(a, get_lane(reg, b));
+        auto start = vt & ~7;
+        auto end = start + 8;
+        auto element = (16 - (e & ~1)) >> 1;
+        auto base = (address & 7) - (e & ~1);
+        address &= ~7;
+        for(uint32_t offset = start; offset < end; offset++) {
+            store_byte(address + (base++ & 15), vu_regs_[offset][(element & 7)] >> 8);
+            store_byte(address + (base++ & 15), vu_regs_[offset][(element & 7)]);
+            element++;
         }
-    }
-
-    void RSP::LBV()
-    {
-        int reg = instruction_.WCType.vt;
-        int lane = instruction_.WCType.element;
-        uint32_t address = gpr_regs_[instruction_.WCType.base].UW +
-                           (static_cast<int8_t>(instruction_.WCType.offset << 1) >> 1);
-        set_lane(reg, lane, (get_lane(reg, lane) & 0xFF) | (load_byte(address) << 8));
     }
 
     void RSP::LSV()
@@ -989,123 +977,66 @@ namespace hydra::N64
 
     void RSP::LTV()
     {
-        int reg = instruction_.WCType.vt;
-        int lane = instruction_.WCType.element;
-        uint32_t address = gpr_regs_[instruction_.WCType.base].UW +
-                           (static_cast<int8_t>(instruction_.WCType.offset << 1) << 3);
+        uint32_t address = gpr_regs_[instruction_.WCType.base].UW + (static_cast<int8_t>(instruction_.WCType.offset << 1) << 3);
+        uint8_t e = instruction_.WCType.element;
+        uint32_t base = address & ~7;
+        uint32_t current = base + (((address & 8) + e) & 15);
+        uint8_t vtbase = instruction_.WCType.vt & ~7;
 
-        for (int i = 0; i < 16; i += 2)
+        for (uint32_t i = 0; i < 8; i++) {
+            VectorRegister& vt = vu_regs_[vtbase + (((e >> 1) + i) & 7)];
+            vt[i] = load_byte(base + (current++ & 0xF)) << 8;
+            vt[i] |= load_byte(base + (current++ & 0xF));
+        }
+    }
+
+    template<class T>
+    void RSP::VLOGICAL(T operation)
+    {
+        VectorRegister& vd = get_vd();
+        VectorRegister& vs = get_vs();
+        VectorRegister& vt = get_vt();
+        const Elements& e = elements[vuinstr.element];
+
+        for (int i = 0; i < 8; i++)
         {
-            uint8_t b = (lane + i) & 0xF;
-            set_lane(reg + b / 2, i, load_halfword(address + b) & 0xFFF);
+            accumulator_[i].SetLow(operation(vs[i], vt[e[i]]));
+        }
+
+        for (int i = 0; i < 8; i++)
+        {
+            vd[i] = accumulator_[i].GetLow();
         }
     }
 
     void RSP::VAND()
     {
-        VectorRegister& vd = get_vd();
-        VectorRegister& vs = get_vs();
-        VectorRegister& vt = get_vt();
-        const Elements& e = elements[vuinstr.element];
-
-        for (int i = 0; i < 8; i++)
-        {
-            accumulator_[i].SetLow(vs[i] & vt[e[i]]);
-        }
-
-        for (int i = 0; i < 8; i++)
-        {
-            vd[i] = accumulator_[i].GetLow();
-        }
+        VLOGICAL(std::bit_and<uint16_t>());
     }
 
     void RSP::VNAND()
     {
-        VectorRegister& vd = get_vd();
-        VectorRegister& vs = get_vs();
-        VectorRegister& vt = get_vt();
-        const Elements& e = elements[vuinstr.element];
-
-        for (int i = 0; i < 8; i++)
-        {
-            accumulator_[i].SetLow((vs[i] & vt[e[i]]) ^ 0xFFFF);
-        }
-
-        for (int i = 0; i < 8; i++)
-        {
-            vd[i] = accumulator_[i].GetLow();
-        }
+        VLOGICAL([](uint16_t a, uint16_t b) { return (a & b) ^ 0xFFFF; });
     }
 
     void RSP::VOR()
     {
-        VectorRegister& vd = get_vd();
-        VectorRegister& vs = get_vs();
-        VectorRegister& vt = get_vt();
-        const Elements& e = elements[vuinstr.element];
-
-        for (int i = 0; i < 8; i++)
-        {
-            accumulator_[i].SetLow(vs[i] | vt[e[i]]);
-        }
-
-        for (int i = 0; i < 8; i++)
-        {
-            vd[i] = accumulator_[i].GetLow();
-        }
+        VLOGICAL(std::bit_or<uint16_t>());
     }
 
     void RSP::VNOR()
     {
-        VectorRegister& vd = get_vd();
-        VectorRegister& vs = get_vs();
-        VectorRegister& vt = get_vt();
-        const Elements& e = elements[vuinstr.element];
-
-        for (int i = 0; i < 8; i++)
-        {
-            accumulator_[i].SetLow((vs[i] | vt[e[i]]) ^ 0xFFFF);
-        }
-        for (int i = 0; i < 8; i++)
-        {
-            vd[i] = accumulator_[i].GetLow();
-        }
+        VLOGICAL([](uint16_t a, uint16_t b) { return (a | b) ^ 0xFFFF; });
     }
 
     void RSP::VXOR()
     {
-        VectorRegister& vd = get_vd();
-        VectorRegister& vs = get_vs();
-        VectorRegister& vt = get_vt();
-        const Elements& e = elements[vuinstr.element];
-
-        for (int i = 0; i < 8; i++)
-        {
-            accumulator_[i].SetLow(vs[i] ^ vt[e[i]]);
-        }
-
-        for (int i = 0; i < 8; i++)
-        {
-            vd[i] = accumulator_[i].GetLow();
-        }
+        VLOGICAL(std::bit_xor<uint16_t>());
     }
 
     void RSP::VNXOR()
     {
-        VectorRegister& vd = get_vd();
-        VectorRegister& vs = get_vs();
-        VectorRegister& vt = get_vt();
-        const Elements& e = elements[vuinstr.element];
-
-        for (int i = 0; i < 8; i++)
-        {
-            accumulator_[i].SetLow((vs[i] ^ vt[e[i]]) ^ 0xFFFF);
-        }
-
-        for (int i = 0; i < 8; i++)
-        {
-            vd[i] = accumulator_[i].GetLow();
-        }
+        VLOGICAL([](uint16_t a, uint16_t b) { return (a ^ b) ^ 0xFFFF; });
     }
 
     void RSP::VSAR()

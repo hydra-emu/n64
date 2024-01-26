@@ -52,6 +52,7 @@ struct Logger
     template <typename... T>
     static void Debug([[maybe_unused]] fmt::format_string<T...> fmt, [[maybe_unused]] T&&... args)
     {
+        return;
         std::string str = fmt::format(fmt, std::forward<T>(args)...);
         log_impl("debug", str);
     }
@@ -76,11 +77,12 @@ struct Logger
 private:
     static inline void log_impl(const std::string& group, const std::string& message)
     {
-        std::vector<log_callback_t>& callbacks = GetCallbacks()[group];
-        for (auto& callback : callbacks)
-        {
-            callback(message.c_str());
-        }
+        // std::vector<log_callback_t>& callbacks = GetCallbacks()[group];
+        // for (auto& callback : callbacks)
+        // {
+        //     callback(message.c_str());
+        // }
+        printf("%s\n", message.c_str());
     }
 
     static std::unordered_map<uint32_t, bool>& get_warnings()

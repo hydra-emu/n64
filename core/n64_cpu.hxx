@@ -1,5 +1,6 @@
 #pragma once
 
+#include "hydra/core.hxx"
 #include <array>
 #include <cfenv>
 #include <cfloat>
@@ -518,7 +519,7 @@ namespace hydra::N64
         uint32_t get_dram_crc();
 
         std::function<void()> poll_input_callback_;
-        std::function<int8_t(uint8_t, uint8_t)> read_input_callback_;
+        std::function<int32_t(uint32_t, hydra::ButtonType)> read_input_callback_;
 
         friend class hydra::N64::N64;
     };

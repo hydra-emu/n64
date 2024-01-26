@@ -7,6 +7,7 @@
 #include <core/n64_addresses.hxx>
 #include <core/n64_rdp.hxx>
 #include <core/n64_rdp_commands.hxx>
+#include <cstdlib>
 #include <execution>
 #include <fstream>
 #include <functional>
@@ -229,6 +230,10 @@ namespace hydra::N64
                     command[i] =
                         hydra::bswap64(*reinterpret_cast<uint64_t*>(address + current + (i * 8)));
                 }
+                if (command[0] == 0xe40b436c00078330)
+                {
+                    printf("Address: %08x\n", current);
+                }
                 execute_command(command);
                 // Logger::Info("RDP: Command {} ({:02x})",
                 // get_rdp_command_name(static_cast<RDPCommandType>(command_type)),
@@ -445,7 +450,6 @@ namespace hydra::N64
             }
             case RDPCommandType::SetTextureImage:
             {
-                // The gsDPSetTextureImage command sets a pointer to the location of the image.
                 SetTextureImageCommand command;
                 command.full = data[0];
                 texture_dram_address_latch_ = command.DRAMAddress;
@@ -1610,8 +1614,8 @@ namespace hydra::N64
         {
             ret.s = data[1] >> 48;
             ret.t = (data[1] >> 32) & 0xFFFF;
-            int32_t DsDx = (int16_t)((data[1] >> 16) & 0xFFFF);
-            int32_t DtDy = (int16_t)(data[1] & 0xFFFF);
+            uint32_t DsDx = (uint16_t)((data[1] >> 16) & 0xFFFF);
+            uint32_t DtDy = (uint16_t)(data[1] & 0xFFFF);
 
             // s.5.10, we need to shift left by 6 to move the integer part to the top 16 bits
             DsDx <<= 6;
@@ -1626,6 +1630,16 @@ namespace hydra::N64
             ret.DsDx = DsDx;
             ret.DtDe = DtDy;
             ret.DtDy = DtDy;
+
+            printf("Texture rectangle: {\n");
+            printf("    %016lx %016lx\n", data[0], data[1]);
+            printf("    s: %d\n", ret.s);
+            printf("    t: %d\n", ret.t);
+            printf("    DsDx: %08x\n", ret.DsDx);
+            printf("    DtDy: %08x\n", ret.DtDy);
+            printf("    DsDx_int: %d\n", DsDx >> 16);
+            printf("    DtDy_int: %d\n", DtDy >> 16);
+            printf("}\n");
         }
 
         return ret;

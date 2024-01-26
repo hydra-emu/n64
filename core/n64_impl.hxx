@@ -1,7 +1,9 @@
 #pragma once
 
+#include "hydra/core.hxx"
 #include <core/n64_cpu.hxx>
 #include <core/n64_rcp.hxx>
+#include <cstdint>
 #include <string>
 
 namespace hydra::N64
@@ -22,7 +24,7 @@ namespace hydra::N64
             cpu_.poll_input_callback_ = callback;
         }
 
-        void SetReadInputCallback(int8_t(*callback)(uint8_t, uint8_t))
+        void SetReadInputCallback(int32_t(*callback)(uint32_t, hydra::ButtonType))
         {
             cpu_.read_input_callback_ = callback;
         }

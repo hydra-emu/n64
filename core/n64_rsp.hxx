@@ -239,6 +239,9 @@ namespace hydra::N64
     private:
         using func_ptr = void (*)(RSP*);
 
+        template<class T>
+        inline void VLOGICAL(T operation);
+
         void VMULF(), VMULU(), VMUDL(), VMUDM(), VMUDN(), VMUDH(), VMACF(), VMACU(), VMADL(),
             VMADM(), VMADN(), VMADH(), VADD(), VABS(), VADDC(), VSAR(), VAND(), VNAND(), VOR(),
             VNOR(), VXOR(), VNXOR(), VSUB(), VLT(), VSUBC(), VEQ(), VNE(), VGE(), VCL(), VCH(),
@@ -386,15 +389,18 @@ namespace hydra::N64
         VUControl8 vce_;
         int16_t div_in_, div_out_;
         bool div_in_ready_ = false;
+
+        // Each vector slice has a 48-bit accumulator associated with it. Each 16-bit
+        // element of a vector register maps to a vector slice, and therefore to a different
+        // 48-bit accumulato
         std::array<AccumulatorLane, 8> accumulator_;
 
         // TODO: some are probably not needed
         Instruction instruction_;
-        uint32_t mem_addr_;
+        uint32_t mem_addr_, pending_mem_addr_;
         bool dma_imem_;
-        uint32_t rdram_addr_;
-        uint32_t rd_len_;
-        uint32_t wr_len_;
+        uint32_t rdram_addr_, pending_rdram_addr_;
+        uint32_t dma_len_;
         RSPStatus status_;
         uint32_t pc_ = 0;
         uint32_t next_pc_ = 4;

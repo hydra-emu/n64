@@ -1,3 +1,4 @@
+#include "common/compatibility.hxx"
 #include "core/n64_addresses.hxx"
 #include <bitset>
 #include <cassert>
@@ -79,7 +80,7 @@ namespace hydra::N64
         uint32_t crc = 0xFFFF'FFFF;
         for (int i = 0; i < 0x9c0; i++)
         {
-            // crc = hydra::crc32_u8(crc, cart_rom_[i + 0x40]);
+            crc = hydra::crc32_u8(crc, cart_rom_[i + 0x40]);
         }
         crc ^= 0xFFFF'FFFF;
 
