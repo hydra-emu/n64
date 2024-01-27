@@ -7,7 +7,6 @@
 #include <chrono>
 #include <cmath>
 #include <compatibility.hxx>
-#include <common/hsystem.h>
 #include <core/n64_log.hxx>
 #include <concepts>
 #include <core/n64_addresses.hxx>
@@ -232,7 +231,7 @@ namespace hydra::N64
         void Reset();
 
     private:
-        hydra_inline uint8_t* redirect_paddress(uint32_t paddr);
+        inline uint8_t* redirect_paddress(uint32_t paddr);
         void map_direct_addresses();
 
         static std::vector<uint8_t> ipl_;
@@ -354,9 +353,9 @@ namespace hydra::N64
         std::chrono::time_point<std::chrono::high_resolution_clock> last_second_time_;
         bool should_service_interrupt_ = false;
 
-        hydra_inline TranslatedAddress translate_vaddr(uint32_t vaddr);
-        hydra_inline TranslatedAddress translate_vaddr_kernel(uint32_t vaddr);
-        hydra_inline TranslatedAddress probe_tlb(uint32_t vaddr);
+        inline TranslatedAddress translate_vaddr(uint32_t vaddr);
+        inline TranslatedAddress translate_vaddr_kernel(uint32_t vaddr);
+        inline TranslatedAddress probe_tlb(uint32_t vaddr);
 
         uint32_t read_hwio(uint32_t addr);
         void write_hwio(uint32_t addr, uint32_t data);
@@ -459,7 +458,7 @@ namespace hydra::N64
 
         bool check_interrupts();
         void update_interrupt_check();
-        hydra_inline void set_interrupt(InterruptType type, bool value);
+        inline void set_interrupt(InterruptType type, bool value);
         void handle_event();
         uint32_t timing_pi_access(uint8_t domain, uint32_t length);
         void check_vi_interrupt();

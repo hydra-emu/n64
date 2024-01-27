@@ -13,15 +13,14 @@
 #include <functional>
 #include <iostream>
 #include <sstream>
-#include <common/hsystem.h>
 
-hydra_inline static uint32_t irand(uint32_t* state)
+inline static uint32_t irand(uint32_t* state)
 {
     *state = *state * 0x343fd + 0x269ec3;
     return ((*state >> 16) & 0x7fff);
 }
 
-hydra_inline static uint32_t rgba16_to_rgba32(uint16_t color)
+inline static uint32_t rgba16_to_rgba32(uint16_t color)
 {
     uint8_t r16 = (color >> 11) & 0x1F;
     uint8_t g16 = (color >> 6) & 0x1F;
@@ -33,7 +32,7 @@ hydra_inline static uint32_t rgba16_to_rgba32(uint16_t color)
     return (a << 24) | (b << 16) | (g << 8) | r;
 }
 
-hydra_inline static uint16_t rgba32_to_rgba16(uint32_t color)
+inline static uint16_t rgba32_to_rgba16(uint32_t color)
 {
     uint8_t r = (color >> 3) & 0x1F;
     uint8_t g = (color >> 11) & 0x1F;
@@ -1971,7 +1970,7 @@ namespace hydra::N64
         return primitive;
     }
 
-    hydra_inline uint8_t color_clamp(uint16_t color)
+    inline uint8_t color_clamp(uint16_t color)
     {
         switch ((color >> 7) & 3)
         {
@@ -1985,7 +1984,7 @@ namespace hydra::N64
         }
     }
 
-    hydra_inline int32_t z_correct(int32_t z)
+    inline int32_t z_correct(int32_t z)
     {
         // TODO: not quite right, there's some coverage shenanigans going on if cvg != 8
         z >>= 3;
