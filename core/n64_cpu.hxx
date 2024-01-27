@@ -6,7 +6,7 @@
 #include <cfloat>
 #include <chrono>
 #include <cmath>
-#include <common/compatibility.hxx>
+#include <compatibility.hxx>
 #include <common/hsystem.h>
 #include <core/n64_log.hxx>
 #include <concepts>

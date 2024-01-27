@@ -1,5 +1,5 @@
-#include "common/compatibility.hxx"
-#include "core/n64_addresses.hxx"
+#include <compatibility.hxx>
+#include <core/n64_addresses.hxx>
 #include <bitset>
 #include <cassert>
 #include <cmath>

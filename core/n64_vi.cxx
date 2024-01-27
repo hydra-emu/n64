@@ -1,4 +1,4 @@
-#include <common/compatibility.hxx>
+#include <compatibility.hxx>
 #include <core/n64_log.hxx>
 #include <core/n64_addresses.hxx>
 #include <core/n64_types.hxx>

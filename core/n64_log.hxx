@@ -4,7 +4,7 @@
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <functional>
-#include <common/str_hash.hxx>
+#include <str_hash.hxx>
 #include <unordered_map>
 #include <vector>
 
