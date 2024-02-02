@@ -115,21 +115,6 @@ namespace hydra::N64
         pif_ram_[0x27] = 0x3F;
     }
 
-    uint8_t* CPUBus::redirect_paddress(uint32_t paddr)
-    {
-        uint8_t* ptr = page_table_[paddr >> 16];
-        if (ptr) [[likely]]
-        {
-            ptr += (paddr & static_cast<uint32_t>(0xFFFF));
-            return ptr;
-        }
-        else if (paddr - 0x1FC00000u < 1984u)
-        {
-            return &ipl_[paddr - 0x1FC00000u];
-        }
-        return nullptr;
-    }
-
     void CPUBus::map_direct_addresses()
     {
         // https://wheremyfoodat.github.io/software-fastmem/
@@ -933,49 +918,6 @@ namespace hydra::N64
         return cycles * 1.5; // Converting RCP clock speed to CPU clock speed
     }
 
-    TranslatedAddress CPU::translate_vaddr(uint32_t addr)
-    {
-        if (is_kernel_mode()) [[likely]]
-        {
-            return translate_vaddr_kernel(addr);
-        }
-        else
-        {
-            Logger::Fatal("Non kernel mode :(");
-        }
-        return {};
-    }
-
-    TranslatedAddress CPU::translate_vaddr_kernel(uint32_t addr)
-    {
-        if (addr >= 0x80000000 && addr <= 0xBFFFFFFF) [[likely]]
-        {
-            return {addr & 0x1FFFFFFF, true, true};
-        }
-        else if (addr >= 0 && addr <= 0x7FFFFFFF)
-        {
-            // User segment
-            TranslatedAddress paddr = probe_tlb(addr);
-            if (!paddr.success)
-            {
-                throw_exception(prev_pc_, ExceptionType::TLBMissLoad);
-                set_cp0_regs_exception(addr);
-            }
-            return paddr;
-        }
-        else if (addr >= 0xC0000000 && addr <= 0xDFFFFFFF)
-        {
-            // Supervisor segment
-            Logger::Warn("Accessing supervisor segment {:08x}", addr);
-        }
-        else
-        {
-            // Kernel segment TLB
-            Logger::Warn("Accessing kernel segment {:08x}", addr);
-        }
-        return {};
-    }
-
     uint8_t CPU::load_byte(uint64_t vaddr)
     {
         TranslatedAddress paddr = translate_vaddr(vaddr);
@@ -1087,32 +1029,6 @@ namespace hydra::N64
         memcpy(ptr, &data, sizeof(uint64_t));
     }
 
-    void CPU::Tick()
-    {
-        ++cpubus_.time_;
-        cpubus_.time_ &= 0x1FFFFFFFF;
-        if (cpubus_.time_ == (cp0_regs_[CP0_COMPARE].UD << 1)) [[unlikely]]
-        {
-            CP0Cause.IP7 = true;
-            update_interrupt_check();
-        }
-        gpr_regs_[0].UD = 0;
-        prev_branch_ = was_branch_;
-        was_branch_ = false;
-        TranslatedAddress paddr = translate_vaddr(pc_);
-        uint8_t* ptr = cpubus_.redirect_paddress(paddr.paddr);
-        instruction_.full = hydra::bswap32(*reinterpret_cast<uint32_t*>(ptr));
-        if (check_interrupts())
-        {
-            return;
-        }
-        log_cpu_state<CPU_LOGGING>(true, 30'000'000, 0);
-        prev_pc_ = pc_;
-        pc_ = next_pc_;
-        next_pc_ += 4;
-        execute_instruction();
-    }
-
     void CPU::check_vi_interrupt()
     {
         if ((rcp_.vi_.vi_v_current_ & 0x3fe) == rcp_.vi_.vi_v_intr_)
@@ -1164,11 +1080,6 @@ namespace hydra::N64
     {
         next_pc_ = address;
         was_branch_ = true;
-    }
-
-    void CPU::execute_instruction()
-    {
-        (instruction_table_[instruction_.IType.op])(this);
     }
 
     void CPU::execute_cp0_instruction()
@@ -1337,52 +1248,6 @@ namespace hydra::N64
                          i++, entry.entry_hi.full, entry.mask, entry.entry_odd.full,
                          entry.entry_even.full, entry.entry_hi.VPN2 << 13);
         }
-    }
-
-    TranslatedAddress CPU::probe_tlb(uint32_t vaddr)
-    {
-        for (const TLBEntry& entry : tlb_)
-        {
-            if (!entry.initialized)
-            {
-                continue;
-            }
-            uint32_t vpn_mask = ~((entry.mask << 13) | 0x1FFF);
-            uint64_t current_vpn = vaddr & vpn_mask;
-            uint64_t have_vpn = (entry.entry_hi.VPN2 << 13) & vpn_mask;
-            int current_asid = CP0EntryHi.ASID;
-            bool global = entry.G;
-            if ((have_vpn == current_vpn) && (global || (entry.entry_hi.ASID == current_asid)))
-            {
-                uint32_t offset_mask = ((entry.mask << 12) | 0xFFF);
-                bool odd = vaddr & (offset_mask + 1);
-                EntryLo elo;
-                if (odd)
-                {
-                    if (!entry.entry_odd.V)
-                    {
-                        return {};
-                    }
-                    elo.full = entry.entry_odd.full;
-                }
-                else
-                {
-                    if (!entry.entry_even.V)
-                    {
-                        return {};
-                    }
-                    elo.full = entry.entry_even.full;
-                }
-                uint32_t paddr = (elo.PFN << 12) | (vaddr & offset_mask);
-                return {
-                    .paddr = paddr,
-                    .cached = elo.C != 2,
-                    .success = true,
-                };
-            }
-        }
-        Logger::Warn("TLB miss at {:08x}", vaddr);
-        return {};
     }
 
     void CPU::dump_rdram()
