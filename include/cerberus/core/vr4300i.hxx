@@ -101,7 +101,7 @@ union CP0StatusType
 };
 
 static_assert(sizeof(CP0StatusType) == sizeof(uint64_t));
-#define CP0Status (reinterpret_cast<CP0StatusType&>(cp0_regs_[CP0_STATUS]))
+#define CP0Status (reinterpret_cast<CP0StatusType&>(cp0s[CP0_STATUS]))
 
 union CP0CauseType
 {
@@ -129,7 +129,7 @@ union CP0CauseType
 };
 
 static_assert(sizeof(CP0CauseType) == sizeof(uint64_t));
-#define CP0Cause (reinterpret_cast<CP0CauseType&>(cp0_regs_[CP0_CAUSE]))
+#define CP0Cause (reinterpret_cast<CP0CauseType&>(cp0s[CP0_CAUSE]))
 
 union CP0ContextType
 {
@@ -144,7 +144,7 @@ union CP0ContextType
 };
 
 static_assert(sizeof(CP0ContextType) == sizeof(uint64_t));
-#define CP0Context (reinterpret_cast<CP0ContextType&>(cp0_regs_[CP0_CONTEXT]))
+#define CP0Context (reinterpret_cast<CP0ContextType&>(cp0s[CP0_CONTEXT]))
 
 union CP0XContextType
 {
@@ -160,8 +160,8 @@ union CP0XContextType
 };
 
 static_assert(sizeof(CP0XContextType) == sizeof(uint64_t));
-#define CP0XContext (reinterpret_cast<CP0XContextType&>(cp0_regs_[CP0_XCONTEXT]))
-#define CP0EntryHi (reinterpret_cast<EntryHi&>(cp0_regs_[CP0_ENTRYHI]))
+#define CP0XContext (reinterpret_cast<CP0XContextType&>(cp0s[CP0_XCONTEXT]))
+#define CP0EntryHi (reinterpret_cast<EntryHi&>(cp0s[CP0_ENTRYHI]))
 
 namespace cerberus
 {
@@ -216,28 +216,28 @@ namespace cerberus
 
         inline void Tick()
         {
-            ++clock_;
-            clock_ &= 0x1FFFFFFFF;
-            if (clock_ == (cp0_regs_[CP0_COMPARE].UD << 1)) [[unlikely]]
+            ++cycleClock;
+            cycleClock &= 0x1FFFFFFFF;
+            if (cycleClock == (cp0s[CP0_COMPARE].UD << 1)) [[unlikely]]
             {
                 CP0Cause.IP7 = true;
                 update_interrupt_check();
             }
-            gpr_regs_[0].UD = 0;
-            prev_branch_ = was_branch_;
-            was_branch_ = false;
-            PhysicalAddress paddr = translate_vaddr(pc_);
+            gprs[0].UD = 0;
+            prevBranch = wasBranch;
+            wasBranch = false;
+            PhysicalAddress paddr = translate_vaddr(Pc);
             uint8_t* ptr = redirect_paddress(paddr);
-            instruction_.full = hydra::bswap32(*reinterpret_cast<uint32_t*>(ptr));
+            instruction.full = hydra::bswap32(*reinterpret_cast<uint32_t*>(ptr));
             if (check_interrupts())
             {
                 return;
             }
             // log_cpu_state<CPU_LOGGING>(true, 30'000'000, 0);
-            prev_pc_ = pc_;
-            pc_ = next_pc_;
-            next_pc_ += 4;
-            (instruction_table_[instruction_.IType.op])(this);
+            prevPc = Pc;
+            Pc = nextPc;
+            nextPc += 4;
+            (instruction_table_[instruction.IType.op])(this);
         }
 
         void Reset();
@@ -245,40 +245,34 @@ namespace cerberus
         bool LoadCartridge(const std::filesystem::path& path);
         bool LoadIPL(const std::filesystem::path& path);
 
-        bool IsEverythingLoaded()
-        {
-            return rom_loaded_ && ipl_loaded_;
-        }
-
     private:
-        RCP& rcp_;
-        Scheduler& scheduler_;
+        RCP& rcp;
+        Scheduler& scheduler;
 
         /// Registers
         // r0 is hardwired to 0, r31 is the link register
-        std::array<MemDataUnionDW, 32> gpr_regs_;
-        std::array<MemDataUnionDW, 32> fpr_regs_;
-        std::array<MemDataUnionDW, 32> cp0_regs_;
-        std::array<TLBEntry, 32> tlb_;
+        std::array<MemDataUnionDW, 32> gprs;
+        std::array<MemDataUnionDW, 32> fprs;
+        std::array<MemDataUnionDW, 32> cp0s;
+        std::array<TLBEntry, 32> tlbEntries;
         // Special registers
-        uint64_t prev_pc_, pc_, next_pc_, hi_, lo_;
-        bool llbit_;
-        uint32_t lladdr_;
-        uint64_t fcr0_;
-        Instruction instruction_;
-        FCR31 fcr31_;
+        uint64_t prevPc, Pc, nextPc, mulHi, mulLo;
+        bool llbit_;      // TODO: refactor?
+        uint32_t lladdr_; // TODO: refactor?
+        Instruction instruction;
+        FCR31 fcr31;
         uint32_t cp0_latch_;
         uint64_t cp2_latch_;
-        bool prev_branch_ = false, was_branch_ = false;
-        int pif_channel_ = 0;
-        ControllerType controller_type_ = ControllerType::Joypad;
+        bool prevBranch = false, wasBranch = false;
+        int pifChannel = 0;
+        ControllerType controllerType = ControllerType::Joypad;
         int32_t mouse_x_, mouse_y_;
         int32_t mouse_delta_x_, mouse_delta_y_;
-        bool should_service_interrupt_ = false;
+        bool interruptPending = false;
 
         inline uint8_t* redirect_paddress(uint32_t paddr)
         {
-            uint8_t* ptr = page_table_[paddr >> 16];
+            uint8_t* ptr = pageTable[paddr >> 16];
             if (ptr) [[likely]]
             {
                 ptr += (paddr & static_cast<uint32_t>(0xFFFF));
@@ -286,22 +280,19 @@ namespace cerberus
             }
             else if (paddr - 0x1FC00000u < 1984u)
             {
-                return &ipl_[paddr - 0x1FC00000u];
+                return &iplData[paddr - 0x1FC00000u];
             }
             return nullptr;
         }
 
         void map_direct_addresses();
 
-        std::vector<uint8_t> ipl_;
-        std::vector<uint8_t> cart_rom_;
-        bool rom_loaded_ = false;
-        bool ipl_loaded_ = false;
-        std::vector<uint8_t> rdram_{};
-        std::vector<uint8_t> sram_{};
-        std::vector<char> isviewer_buffer_{};
-        std::array<uint8_t, 64> pif_ram_{};
-        std::array<uint8_t*, 0x10000> page_table_{};
+        std::vector<uint8_t> iplData;
+        std::vector<uint8_t> cartridgeData;
+        std::vector<uint8_t> rdram{};
+        std::vector<char> isviewer{};
+        std::array<uint8_t, 64> pifRam{};
+        std::array<uint8_t*, 0x10000> pageTable{};
 
         // MIPS Interface
         uint32_t mi_mode_ = 0;
@@ -341,7 +332,7 @@ namespace cerberus
         uint32_t si_pif_ad_rd64b_ = 0;
         uint32_t si_status_ = 0;
 
-        uint64_t clock_ = 0;
+        uint64_t cycleClock = 0;
 
         inline PhysicalAddress translate_vaddr(uint32_t vaddr)
         {
@@ -383,7 +374,7 @@ namespace cerberus
 
         inline PhysicalAddress probe_tlb(uint32_t vaddr)
         {
-            for (const TLBEntry& entry : tlb_)
+            for (const TLBEntry& entry : tlbEntries)
             {
                 if (!entry.initialized)
                 {
@@ -420,7 +411,7 @@ namespace cerberus
                 }
             }
             Logger::Warn("TLB miss at {:08x}", vaddr);
-            throw_exception(prev_pc_, ExceptionType::TLBMissLoad);
+            throw_exception(prevPc, ExceptionType::TLBMissLoad);
             set_cp0_regs_exception(vaddr);
             return {};
         }

@@ -401,8 +401,8 @@ namespace cerberus
         uint32_t rdram_addr_, pending_rdram_addr_;
         uint32_t dma_len_;
         RSPStatus status_;
-        uint32_t pc_ = 0;
-        uint32_t next_pc_ = 4;
+        uint32_t Pc = 0;
+        uint32_t nextPc = 4;
         bool semaphore_;
         uint8_t* rdram_ptr_ = nullptr;
         RDP* rdp_ptr_ = nullptr;

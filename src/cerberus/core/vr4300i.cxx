@@ -29,8 +29,7 @@ namespace cerberus
             ifs.seekg(0, std::ios::end);
             std::streampos size = ifs.tellg();
             ifs.seekg(0, std::ios::beg);
-            ifs.read(reinterpret_cast<char*>(cart_rom_.data()), size);
-            rom_loaded_ = true;
+            ifs.read(reinterpret_cast<char*>(cartridgeData.data()), size);
         }
         else
         {
@@ -47,21 +46,20 @@ namespace cerberus
         std::ifstream ifs(path, std::ios::in | std::ios::binary);
         if (ifs.is_open())
         {
-            if (ipl_.empty())
+            if (iplData.empty())
             {
                 ifs.unsetf(std::ios::skipws);
                 ifs.seekg(0, std::ios::end);
                 std::streampos size = ifs.tellg();
                 ifs.seekg(0, std::ios::beg);
-                ipl_.resize(size);
-                ifs.read(reinterpret_cast<char*>(ipl_.data()), size);
+                iplData.resize(size);
+                ifs.read(reinterpret_cast<char*>(iplData.data()), size);
             }
         }
         else
         {
             return false;
         }
-        ipl_loaded_ = !ipl_.empty();
         return true;
     }
 
@@ -73,21 +71,17 @@ namespace cerberus
         // Map rdram
         for (int i = 0; i < ADDR_TO_PAGE(0x800'000); i++)
         {
-            page_table_[i] = &rdram_[N64_PAGE_SIZE * i];
+            pageTable[i] = &rdram[N64_PAGE_SIZE * i];
         }
-        page_table_[ADDR_TO_PAGE(0x04000000)] = &rcp_.rsp_.mem_[0];
 
-        for (int i = ADDR_TO_PAGE(0x08000000); i <= ADDR_TO_PAGE(0x0FFF'0000); i++)
-        {
-            // page_table_[i] = &sram_[PAGE_SIZE * (i - ADDR_TO_PAGE(0x0800'0000))];
-        }
+        pageTable[ADDR_TO_PAGE(0x04000000)] = &rcp.rsp.mem_[0];
 
         // Map cartridge rom
         for (int i = ADDR_TO_PAGE(0x1000'0000); i <= ADDR_TO_PAGE(0x1FBF'0000); i++)
         {
-            page_table_[i] = &cart_rom_[N64_PAGE_SIZE * (i - ADDR_TO_PAGE(0x1000'0000))];
+            pageTable[i] = &cartridgeData[N64_PAGE_SIZE * (i - ADDR_TO_PAGE(0x1000'0000))];
         }
-        page_table_[ADDR_TO_PAGE(ISVIEWER_AREA_START)] = nullptr;
+        pageTable[ADDR_TO_PAGE(ISVIEWER_AREA_START)] = nullptr;
 #undef ADDR_TO_PAGE
     }
 
@@ -117,24 +111,24 @@ namespace cerberus
             // uint32_t pifcrc = 0xFFFF'FFFF;
             for (int i = 0; i < 32; i++)
             {
-                // gprcrc = hydra::crc32_u64(gprcrc, gpr_regs_[i].UD);
-                // fprcrc = hydra::crc32_u64(fprcrc, fpr_regs_[i].UD);
+                // gprcrc = hydra::crc32_u64(gprcrc, gprs[i].UD);
+                // fprcrc = hydra::crc32_u64(fprcrc, fprs[i].UD);
             }
             for (int i = 0; i < 64; i++)
             {
-                // pifcrc = hydra::crc32_u8(pifcrc, pif_ram_[i]);
+                // pifcrc = hydra::crc32_u8(pifcrc, pifRam[i]);
             }
             gprcrc ^= 0xFFFF'FFFF;
             fprcrc ^= 0xFFFF'FFFF;
             // pifcrc ^= 0xFFFF'FFFF;
-            printf("%08lx %08x %08x %08x", pc_ & 0xFFFF'FFFF, instruction_.full, gprcrc, fprcrc);
+            printf("%08lx %08x %08x %08x", Pc & 0xFFFF'FFFF, instruction.full, gprcrc, fprcrc);
         }
         else
         {
-            printf("%08lx %08x ", pc_, instruction_.full);
+            printf("%08lx %08x ", Pc, instruction.full);
             for (int i = 1; i < 32; i++)
             {
-                printf("%016lx ", gpr_regs_[i].UD);
+                printf("%016lx ", gprs[i].UD);
             }
         }
         printf("\n");
@@ -203,7 +197,7 @@ namespace cerberus
             }
             case PI_RD_LEN:
             {
-                // std::memcpy(&rdram_[hydra::bswap32(pi_cart_addr_)],
+                // std::memcpy(&rdram[hydra::bswap32(pi_cart_addr_)],
                 // redirect_paddress(hydra::bswap32(pi_dram_addr_)), data + 1);
                 Logger::Warn("PI_RD_LEN write");
                 set_interrupt(InterruptType::PI, true);
@@ -221,7 +215,7 @@ namespace cerberus
                     set_interrupt(InterruptType::PI, true);
                     return;
                 }
-                std::memcpy(&rdram_[dram_addr], redirect_paddress(cart_addr), length);
+                std::memcpy(&rdram[dram_addr], redirect_paddress(cart_addr), length);
                 dma_busy_ = true;
                 // uint8_t domain = 0;
                 // if ((cart_addr >= 0x0800'0000 && cart_addr < 0x1000'0000) ||
@@ -318,7 +312,7 @@ namespace cerberus
             }
             case SI_PIF_AD_WR64B:
             {
-                std::memcpy(pif_ram_.data(), &rdram_[si_dram_addr_ & 0xff'ffff], 64);
+                std::memcpy(pifRam.data(), &rdram[si_dram_addr_ & 0xff'ffff], 64);
                 pif_command();
                 set_interrupt(InterruptType::SI, true);
                 Logger::Debug("Raising SI interrupt");
@@ -327,7 +321,7 @@ namespace cerberus
             case SI_PIF_AD_RD64B:
             {
                 pif_command();
-                std::memcpy(&rdram_[si_dram_addr_ & 0xff'ffff], pif_ram_.data(), 64);
+                std::memcpy(&rdram[si_dram_addr_ & 0xff'ffff], pifRam.data(), 64);
                 set_interrupt(InterruptType::SI, true);
                 Logger::Debug("Raising SI interrupt");
                 return;
@@ -341,61 +335,61 @@ namespace cerberus
         // Video interface
         if (addr >= VI_AREA_START && addr <= VI_AREA_END)
         {
-            rcp_.vi_.WriteWord(addr, data);
+            rcp.vi_.WriteWord(addr, data);
         }
         // Audio interface
         else if (addr >= AI_AREA_START && addr <= AI_AREA_END)
         {
-            rcp_.ai_.WriteWord(addr, data);
+            rcp.ai_.WriteWord(addr, data);
         }
         else if (addr >= RSP_AREA_START && addr <= RSP_AREA_END)
         {
             switch (addr)
             {
                 case RSP_DMA_SPADDR:
-                    rcp_.rsp_.write_hwio(RSPHWIO::Cache, data);
+                    rcp.rsp.write_hwio(RSPHWIO::Cache, data);
                     break;
                 case RSP_DMA_RAMADDR:
-                    rcp_.rsp_.write_hwio(RSPHWIO::DramAddr, data);
+                    rcp.rsp.write_hwio(RSPHWIO::DramAddr, data);
                     break;
                 case RSP_DMA_RDLEN:
-                    rcp_.rsp_.write_hwio(RSPHWIO::RdLen, data);
+                    rcp.rsp.write_hwio(RSPHWIO::RdLen, data);
                     break;
                 case RSP_DMA_WRLEN:
-                    rcp_.rsp_.write_hwio(RSPHWIO::WrLen, data);
+                    rcp.rsp.write_hwio(RSPHWIO::WrLen, data);
                     break;
                 case RSP_STATUS:
-                    rcp_.rsp_.write_hwio(RSPHWIO::Status, data);
+                    rcp.rsp.write_hwio(RSPHWIO::Status, data);
                     break;
                 case RSP_SEMAPHORE:
-                    rcp_.rsp_.write_hwio(RSPHWIO::Semaphore, data);
+                    rcp.rsp.write_hwio(RSPHWIO::Semaphore, data);
                     break;
                 case RSP_PC:
                 {
-                    if (!rcp_.rsp_.status_.halt)
+                    if (!rcp.rsp.status_.halt)
                     {
                         Logger::Warn("RSP PC write while not halted");
                     }
-                    rcp_.rsp_.pc_ = data & 0xffc;
-                    rcp_.rsp_.next_pc_ = rcp_.rsp_.pc_ + 4;
+                    rcp.rsp.Pc = data & 0xffc;
+                    rcp.rsp.nextPc = rcp.rsp.Pc + 4;
                     return;
                 }
             }
         }
         else if (addr >= RDP_AREA_START && addr <= RDP_AREA_END)
         {
-            rcp_.rdp_.WriteWord(addr, data);
+            rcp.rdp.WriteWord(addr, data);
         }
         else if (addr >= PIF_START && addr <= PIF_END)
         {
-            uint8_t* pif_ptr = reinterpret_cast<uint8_t*>(&pif_ram_[addr - PIF_START]);
+            uint8_t* pif_ptr = reinterpret_cast<uint8_t*>(&pifRam[addr - PIF_START]);
             uint32_t swapped = hydra::bswap32(data);
             memcpy(pif_ptr, &swapped, 4);
             pif_command();
         }
         else if (addr == PIF_COMMAND)
         {
-            pif_ram_[63] = data;
+            pifRam[63] = data;
             pif_command();
         }
         else if (addr == ISVIEWER_FLUSH)
@@ -403,7 +397,7 @@ namespace cerberus
             std::stringstream ss;
             for (uint32_t i = 0; i < data; i++)
             {
-                ss << isviewer_buffer_[i];
+                ss << isviewer[i];
             }
             std::cout << ss.str();
         }
@@ -412,7 +406,7 @@ namespace cerberus
             data = hydra::bswap32(data);
             for (int i = 0; i < 4; i++)
             {
-                isviewer_buffer_[addr - ISVIEWER_AREA_START + i] = data >> (i * 8);
+                isviewer[addr - ISVIEWER_AREA_START + i] = data >> (i * 8);
             }
         }
         else if (addr >= RI_AREA_START && addr <= RI_AREA_END)
@@ -482,29 +476,29 @@ namespace cerberus
 
             // RSP registers
             case RSP_DMA_SPADDR:
-                return rcp_.rsp_.read_hwio(RSPHWIO::Cache);
+                return rcp.rsp.read_hwio(RSPHWIO::Cache);
             case RSP_DMA_RAMADDR:
-                return rcp_.rsp_.read_hwio(RSPHWIO::DramAddr);
+                return rcp.rsp.read_hwio(RSPHWIO::DramAddr);
             case RSP_DMA_RDLEN:
-                return rcp_.rsp_.read_hwio(RSPHWIO::RdLen);
+                return rcp.rsp.read_hwio(RSPHWIO::RdLen);
             case RSP_DMA_WRLEN:
-                return rcp_.rsp_.read_hwio(RSPHWIO::WrLen);
+                return rcp.rsp.read_hwio(RSPHWIO::WrLen);
             case RSP_STATUS:
-                return rcp_.rsp_.read_hwio(RSPHWIO::Status);
+                return rcp.rsp.read_hwio(RSPHWIO::Status);
             case RSP_DMA_FULL:
-                return rcp_.rsp_.read_hwio(RSPHWIO::Full);
+                return rcp.rsp.read_hwio(RSPHWIO::Full);
             case RSP_DMA_BUSY:
-                return rcp_.rsp_.read_hwio(RSPHWIO::Busy);
+                return rcp.rsp.read_hwio(RSPHWIO::Busy);
             case RSP_SEMAPHORE:
-                return rcp_.rsp_.read_hwio(RSPHWIO::Semaphore);
-                redir_case(PIF_COMMAND, pif_ram_[63]);
+                return rcp.rsp.read_hwio(RSPHWIO::Semaphore);
+                redir_case(PIF_COMMAND, pifRam[63]);
             case RSP_PC:
             {
-                if (!rcp_.rsp_.status_.halt)
+                if (!rcp.rsp.status_.halt)
                 {
                     Logger::Warn("Reading from RSP_PC while not halted");
                 }
-                return rcp_.rsp_.pc_;
+                return rcp.rsp.Pc;
             }
             case ISVIEWER_FLUSH:
             {
@@ -520,16 +514,16 @@ namespace cerberus
         // Video interface
         if (addr >= VI_AREA_START && addr <= VI_AREA_END)
         {
-            return rcp_.vi_.ReadWord(addr);
+            return rcp.vi_.ReadWord(addr);
         }
         // Audio Interface
         else if (addr >= AI_AREA_START && addr <= AI_AREA_END)
         {
-            return rcp_.ai_.ReadWord(addr);
+            return rcp.ai_.ReadWord(addr);
         }
         else if (addr >= PIF_START && addr <= PIF_END)
         {
-            uint8_t* pif_ram = &pif_ram_[addr - PIF_START];
+            uint8_t* pif_ram = &pifRam[addr - PIF_START];
             uint32_t data = pif_ram[0] << 24 | pif_ram[1] << 16 | pif_ram[2] << 8 | pif_ram[3];
             return data;
         }
@@ -541,14 +535,14 @@ namespace cerberus
         else if (addr >= ISVIEWER_AREA_START && addr <= ISVIEWER_AREA_END)
         {
             uint8_t* isviewer_ptr =
-                reinterpret_cast<uint8_t*>(&isviewer_buffer_[addr - ISVIEWER_AREA_START]);
+                reinterpret_cast<uint8_t*>(&isviewer[addr - ISVIEWER_AREA_START]);
             uint32_t data = isviewer_ptr[0] << 24 | isviewer_ptr[1] << 16 | isviewer_ptr[2] << 8 |
                             isviewer_ptr[3];
             return data;
         }
         else if (addr >= RDP_AREA_START && addr <= RDP_AREA_END)
         {
-            return rcp_.rdp_.ReadWord(addr);
+            return rcp.rdp.ReadWord(addr);
         }
         else if (addr >= N64DD_AREA_START && addr <= N64DD_AREA_END)
         {
@@ -560,7 +554,7 @@ namespace cerberus
             Logger::Warn("Accessing SRAM");
             return 0;
         }
-        Logger::Warn("Unhandled read_hwio from address {:08x} PC: {:08x}", addr, pc_);
+        Logger::Warn("Unhandled read_hwio from address {:08x} PC: {:08x}", addr, Pc);
         return 0;
     }
 
@@ -579,17 +573,17 @@ namespace cerberus
     {
         using namespace cerberus;
         poll_input_callback_();
-        auto command_byte = pif_ram_[63];
+        auto command_byte = pifRam[63];
         if (command_byte & 0x1)
         {
-            pif_channel_ = 0;
+            pifChannel = 0;
             int i = 0;
             while (i < 63)
             {
-                int8_t tx = pif_ram_[i++];
+                int8_t tx = pifRam[i++];
                 if (tx > 0)
                 {
-                    uint8_t* rx_ptr = &pif_ram_[i++];
+                    uint8_t* rx_ptr = &pifRam[i++];
                     if (*rx_ptr == 0xFE)
                     {
                         break;
@@ -600,7 +594,7 @@ namespace cerberus
                     data.resize(tx);
                     for (int8_t j = 0; j < tx; j++)
                     {
-                        data[j] = pif_ram_[i++];
+                        data[j] = pifRam[i++];
                     }
                     // get response bytes
                     std::vector<uint8_t> response;
@@ -612,13 +606,13 @@ namespace cerberus
                     }
                     for (size_t j = 0; j < response.size(); j++)
                     {
-                        pif_ram_[i++] = response[j];
+                        pifRam[i++] = response[j];
                     }
-                    pif_channel_++;
+                    pifChannel++;
                 }
                 else if (tx == 0)
                 {
-                    pif_channel_++;
+                    pifChannel++;
                     continue;
                 }
                 else if (static_cast<uint8_t>(tx) == 0xFE)
@@ -633,29 +627,29 @@ namespace cerberus
         }
         if (command_byte & 0x20)
         {
-            // pif_ram_[0x32] = 0;
-            // pif_ram_[0x33] = 0;
-            // pif_ram_[0x34] = 0;
-            // pif_ram_[0x35] = 0;
-            // pif_ram_[0x36] = 0;
-            // pif_ram_[0x37] = 0;
+            // pifRam[0x32] = 0;
+            // pifRam[0x33] = 0;
+            // pifRam[0x34] = 0;
+            // pifRam[0x35] = 0;
+            // pifRam[0x36] = 0;
+            // pifRam[0x37] = 0;
         }
         if (command_byte & 0x30)
         {
             command_byte = 0x80;
         }
-        pif_ram_[63] = command_byte;
+        pifRam[63] = command_byte;
     }
 
     void CPU::update_interrupt_check()
     {
         bool mi_interrupt = mi_interrupt_.full & mi_mask_;
         CP0Cause.IP2 = mi_interrupt;
-        bool interrupts_pending = cp0_regs_[CP0_CAUSE].UB._1 & CP0Status.IM;
+        bool interrupts_pending = cp0s[CP0_CAUSE].UB._1 & CP0Status.IM;
         bool interrupts_enabled = CP0Status.IE;
         bool currently_handling_exception = CP0Status.EXL;
         bool currently_handling_error = CP0Status.ERL;
-        should_service_interrupt_ = interrupts_pending && interrupts_enabled &&
+        interruptPending = interrupts_pending && interrupts_enabled &&
                                     !currently_handling_exception && !currently_handling_error;
     }
 
@@ -676,11 +670,11 @@ namespace cerberus
                     dump_pif_ram();
                     Logger::Fatal("Joybus RequestInfo command with result size {}", result.size());
                 }
-                switch (pif_channel_)
+                switch (pifChannel)
                 {
                     case 0:
                     {
-                        uint16_t controller = static_cast<uint16_t>(controller_type_);
+                        uint16_t controller = static_cast<uint16_t>(controllerType);
                         result[0] = controller >> 8;
                         result[1] = controller & 0xFF;
                         result[2] = 0x01;
@@ -703,12 +697,12 @@ namespace cerberus
                     Logger::Fatal("Joybus ControllerState command with result size {}",
                                   result.size());
                 }
-                if (pif_channel_ != 0)
+                if (pifChannel != 0)
                 {
                     return true;
                 }
 
-                get_controller_state(0, result, controller_type_);
+                get_controller_state(0, result, controllerType);
                 break;
             }
             case JoybusCommand::WriteMempack:
@@ -775,51 +769,51 @@ namespace cerberus
     }
 
     CPU::CPU(Scheduler& scheduler, RCP& rcp)
-        : gpr_regs_{}, fpr_regs_{}, scheduler_(scheduler), rcp_(rcp)
+        : gprs{}, fprs{}, scheduler(scheduler), rcp(rcp)
     {
-        isviewer_buffer_.resize(ISVIEWER_AREA_END - ISVIEWER_AREA_START);
-        cart_rom_.resize(0xFC00000);
-        rdram_.resize(0x800000);
+        isviewer.resize(ISVIEWER_AREA_END - ISVIEWER_AREA_START);
+        cartridgeData.resize(0xFC00000);
+        rdram.resize(0x800000);
         map_direct_addresses();
-        rcp_.ai_.InstallBuses(&rdram_[0]);
-        rcp_.vi_.InstallBuses(&rdram_[0]);
-        rcp_.rsp_.InstallBuses(&rdram_[0], &rcp_.rdp_);
-        rcp_.rdp_.InstallBuses(&rdram_[0], &rcp_.rsp_.mem_[0]);
-        rcp_.ai_.SetInterruptCallback(
+        rcp.ai_.InstallBuses(&rdram[0]);
+        rcp.vi_.InstallBuses(&rdram[0]);
+        rcp.rsp.InstallBuses(&rdram[0], &rcp.rdp);
+        rcp.rdp.InstallBuses(&rdram[0], &rcp.rsp.mem_[0]);
+        rcp.ai_.SetInterruptCallback(
             std::bind(&CPU::set_interrupt, this, InterruptType::AI, std::placeholders::_1));
-        rcp_.vi_.SetInterruptCallback(
+        rcp.vi_.SetInterruptCallback(
             std::bind(&CPU::set_interrupt, this, InterruptType::VI, std::placeholders::_1));
-        rcp_.rsp_.SetInterruptCallback(
+        rcp.rsp.SetInterruptCallback(
             std::bind(&CPU::set_interrupt, this, InterruptType::SP, std::placeholders::_1));
-        rcp_.rdp_.SetInterruptCallback(
+        rcp.rdp.SetInterruptCallback(
             std::bind(&CPU::set_interrupt, this, InterruptType::DP, std::placeholders::_1));
     }
 
     void CPU::Reset()
     {
-        pc_ = 0xFFFF'FFFF'BFC0'0000;
-        next_pc_ = pc_ + 4;
-        should_service_interrupt_ = false;
-        for (auto& reg : gpr_regs_)
+        Pc = 0xFFFF'FFFF'BFC0'0000;
+        nextPc = Pc + 4;
+        interruptPending = false;
+        for (auto& reg : gprs)
         {
             reg.UD = 0;
         }
-        for (auto& reg : fpr_regs_)
+        for (auto& reg : fprs)
         {
             reg.UD = 0;
         }
-        for (auto& reg : cp0_regs_)
+        for (auto& reg : cp0s)
         {
             reg.UD = 0;
         }
-        pif_ram_.fill(0);
-        clock_ = 0;
-        if (!cart_rom_.empty())
+        pifRam.fill(0);
+        cycleClock = 0;
+        if (!cartridgeData.empty())
         {
             uint32_t crc = 0xFFFF'FFFF;
             for (int i = 0; i < 0x9c0; i++)
             {
-                crc = hydra::crc32_u8(crc, cart_rom_[i + 0x40]);
+                crc = hydra::crc32_u8(crc, cartridgeData[i + 0x40]);
             }
             crc ^= 0xFFFF'FFFF;
             switch (crc)
@@ -827,40 +821,40 @@ namespace cerberus
                 // CIC-NUS-6103
                 case 0xea8f8526:
                 {
-                    pif_ram_[0x26] = 0x78;
+                    pifRam[0x26] = 0x78;
                     break;
                 }
                 // CIC-NUS-6105
                 case 0x1abca43c:
                 {
-                    pif_ram_[0x26] = 0x91;
+                    pifRam[0x26] = 0x91;
                     break;
                 }
                 // CIC-NUS-6106
                 case 0x7d286472:
                 {
-                    pif_ram_[0x26] = 0x85;
+                    pifRam[0x26] = 0x85;
                     break;
                 }
                 default:
                 {
                     Logger::Warn("Unknown CIC: {:08X}", crc);
-                    pif_ram_[0x26] = 0x3F;
+                    pifRam[0x26] = 0x3F;
                     break;
                 }
             }
-            pif_ram_[0x27] = 0x3F;
+            pifRam[0x27] = 0x3F;
         }
         CP0Status.full = 0x3400'0000;
         CP0Cause.full = 0xB000'007C;
-        cp0_regs_[CP0_EPC].UD = 0xFFFF'FFFF'FFFF'FFFFu;
-        cp0_regs_[CP0_ERROREPC].UD = 0xFFFF'FFFF'FFFF'FFFFu;
-        cp0_regs_[CP0_CONFIG].UD = 0x7006'E463;
-        cp0_regs_[CP0_PRID].UD = 0x0000'0B22;
+        cp0s[CP0_EPC].UD = 0xFFFF'FFFF'FFFF'FFFFu;
+        cp0s[CP0_ERROREPC].UD = 0xFFFF'FFFF'FFFF'FFFFu;
+        cp0s[CP0_CONFIG].UD = 0x7006'E463;
+        cp0s[CP0_PRID].UD = 0x0000'0B22;
         CP0Context.full = 0;
         CP0XContext.full = 0;
         CP0EntryHi.full = 0;
-        for (auto& entry : tlb_)
+        for (auto& entry : tlbEntries)
         {
             TLBEntry newentry{};
             newentry.initialized = false;
@@ -1018,7 +1012,7 @@ namespace cerberus
 
     void CPU::check_vi_interrupt()
     {
-        if ((rcp_.vi_.vi_v_current_ & 0x3fe) == rcp_.vi_.vi_v_intr_)
+        if ((rcp.vi_.vi_v_current_ & 0x3fe) == rcp.vi_.vi_v_intr_)
         {
             Logger::Debug("Raising VI interrupt");
             set_interrupt(InterruptType::VI, true);
@@ -1027,9 +1021,9 @@ namespace cerberus
 
     bool CPU::check_interrupts()
     {
-        if (should_service_interrupt_)
+        if (interruptPending)
         {
-            throw_exception(pc_, ExceptionType::Interrupt);
+            throw_exception(Pc, ExceptionType::Interrupt);
             return true;
         }
         return false;
@@ -1037,7 +1031,7 @@ namespace cerberus
 
     void CPU::conditional_branch(bool condition, uint64_t address)
     {
-        was_branch_ = true;
+        wasBranch = true;
         if (condition)
         {
             branch_to(address);
@@ -1052,61 +1046,61 @@ namespace cerberus
         }
         else
         {
-            pc_ += 4;
-            next_pc_ = pc_ + 4;
+            Pc += 4;
+            nextPc = Pc + 4;
         }
     }
 
     void CPU::link_register(uint8_t reg)
     {
-        uint64_t sepc = static_cast<int64_t>(static_cast<int32_t>(pc_));
-        gpr_regs_[reg].UD = sepc + 4;
+        uint64_t sepc = static_cast<int64_t>(static_cast<int32_t>(Pc));
+        gprs[reg].UD = sepc + 4;
     }
 
     void CPU::branch_to(uint64_t address)
     {
-        next_pc_ = address;
-        was_branch_ = true;
+        nextPc = address;
+        wasBranch = true;
     }
 
     void CPU::execute_cp0_instruction()
     {
-        uint32_t func = instruction_.RType.rs;
+        uint32_t func = instruction.RType.rs;
         if (func & 0b10000)
         {
             // Coprocessor function
-            switch (static_cast<CP0Instruction>(instruction_.RType.func))
+            switch (static_cast<CP0Instruction>(instruction.RType.func))
             {
                 case CP0Instruction::ERET:
                 {
-                    if ((gpr_regs_[CP0_STATUS].UD & 0b10) == 1)
+                    if ((gprs[CP0_STATUS].UD & 0b10) == 1)
                     {
-                        pc_ = cp0_regs_[CP0_ERROREPC].UD;
+                        Pc = cp0s[CP0_ERROREPC].UD;
                         CP0Status.ERL = false;
                     }
                     else
                     {
-                        pc_ = cp0_regs_[CP0_EPC].UD;
+                        Pc = cp0s[CP0_EPC].UD;
                         CP0Status.EXL = false;
                     }
-                    next_pc_ = pc_ + 4;
+                    nextPc = Pc + 4;
                     llbit_ = 0;
                     update_interrupt_check();
                     break;
                 }
                 case CP0Instruction::TLBWI:
                 {
-                    uint8_t index = cp0_regs_[CP0_INDEX].UD & 0b11111;
+                    uint8_t index = cp0s[CP0_INDEX].UD & 0b11111;
 
                     TLBEntry entry;
                     EntryLo el0, el1;
                     EntryHi eh;
-                    uint16_t mask = (cp0_regs_[CP0_PAGEMASK].UD >> 13) & 0b101010101010;
+                    uint16_t mask = (cp0s[CP0_PAGEMASK].UD >> 13) & 0b101010101010;
                     mask |= mask >> 1;
                     entry.mask = mask;
-                    el0.full = cp0_regs_[CP0_ENTRYLO0].UD;
-                    el1.full = cp0_regs_[CP0_ENTRYLO1].UD;
-                    eh.full = cp0_regs_[CP0_ENTRYHI].UD;
+                    el0.full = cp0s[CP0_ENTRYLO0].UD;
+                    el1.full = cp0s[CP0_ENTRYLO1].UD;
+                    eh.full = cp0s[CP0_ENTRYHI].UD;
                     entry.G = el0.G && el1.G;
                     entry.entry_even.full = el0.full & 0x3FF'FFFE;
                     entry.entry_odd.full = el1.full & 0x3FF'FFFE;
@@ -1114,27 +1108,27 @@ namespace cerberus
                     entry.entry_hi.full = eh.full;
                     entry.initialized = true;
 
-                    tlb_[index] = entry;
+                    tlbEntries[index] = entry;
                     break;
                 }
                 case CP0Instruction::TLBP:
                 {
-                    cp0_regs_[CP0_INDEX].UD = 1 << 31;
+                    cp0s[CP0_INDEX].UD = 1 << 31;
                     for (int i = 0; i < 32; i++)
                     {
-                        const TLBEntry& entry = tlb_[i];
+                        const TLBEntry& entry = tlbEntries[i];
                         if (!entry.initialized)
                         {
                             continue;
                         }
                         EntryHi eh;
-                        eh.full = cp0_regs_[CP0_ENTRYHI].UD;
+                        eh.full = cp0s[CP0_ENTRYHI].UD;
 
                         if (entry.entry_hi.VPN2 == (eh.VPN2 & ~entry.mask) &&
                             (entry.G || (eh.ASID == entry.entry_hi.ASID)) &&
                             (entry.entry_hi.R == eh.R))
                         {
-                            cp0_regs_[CP0_INDEX].UD = i;
+                            cp0s[CP0_INDEX].UD = i;
                             break;
                         }
                     }
@@ -1142,18 +1136,18 @@ namespace cerberus
                 }
                 case CP0Instruction::TLBR:
                 {
-                    uint8_t index = cp0_regs_[CP0_INDEX].UD & 0b11111;
+                    uint8_t index = cp0s[CP0_INDEX].UD & 0b11111;
 
-                    TLBEntry entry = tlb_[index];
+                    TLBEntry entry = tlbEntries[index];
                     EntryLo el0, el1;
                     el0.full = entry.entry_even.full;
                     el1.full = entry.entry_odd.full;
                     el0.G = entry.G;
                     el1.G = entry.G;
-                    cp0_regs_[CP0_ENTRYLO0].UD = el0.full & 0x3FFF'FFFF;
-                    cp0_regs_[CP0_ENTRYLO1].UD = el1.full & 0x3FFF'FFFF;
-                    cp0_regs_[CP0_ENTRYHI].UD = entry.entry_hi.full;
-                    cp0_regs_[CP0_PAGEMASK].UD = entry.mask << 13;
+                    cp0s[CP0_ENTRYLO0].UD = el0.full & 0x3FFF'FFFF;
+                    cp0s[CP0_ENTRYLO1].UD = el1.full & 0x3FFF'FFFF;
+                    cp0s[CP0_ENTRYHI].UD = entry.entry_hi.full;
+                    cp0s[CP0_PAGEMASK].UD = entry.mask << 13;
 
                     break;
                 }
@@ -1166,7 +1160,7 @@ namespace cerberus
                     return Logger::Warn("WAIT is not implemented");
                 }
                 default:
-                    Logger::Fatal("Invalid CP0 instruction at {:016X}", pc_);
+                    Logger::Fatal("Invalid CP0 instruction at {:016X}", Pc);
             }
         }
         else
@@ -1182,7 +1176,7 @@ namespace cerberus
                 case 5:
                     return DMTC0();
                 default:
-                    Logger::Fatal("Invalid CP0 instruction at {:016X}", pc_);
+                    Logger::Fatal("Invalid CP0 instruction at {:016X}", Pc);
             }
         }
     }
@@ -1193,14 +1187,14 @@ namespace cerberus
         ss << std::hex << std::setfill('0') << std::setw(2);
         for (int i = 0; i < 64; i++)
         {
-            ss << std::setfill('0') << std::setw(2) << static_cast<int>(pif_ram_[i]);
+            ss << std::setfill('0') << std::setw(2) << static_cast<int>(pifRam[i]);
         }
         std::cout << ss.str() << std::endl;
     }
 
     void CPU::set_cp0_regs_exception(int64_t vaddr)
     {
-        cp0_regs_[CP0_BADVADDR].D = vaddr;
+        cp0s[CP0_BADVADDR].D = vaddr;
         CP0Context.BadVPN2 = (vaddr >> 13) & 0x7FFFF;
         CP0XContext.BadVPN2 = (vaddr >> 13) & 0x7FFFFFF;
         CP0XContext.R = (vaddr >> 62) & 0b11;
@@ -1216,7 +1210,7 @@ namespace cerberus
     void CPU::dump_tlb()
     {
         int i = 0;
-        for (const auto& entry : tlb_)
+        for (const auto& entry : tlbEntries)
         {
             if (entry.entry_odd.full == 0 && entry.entry_even.full == 0)
             {
@@ -1238,7 +1232,7 @@ namespace cerberus
         printf("rdram:\n");
         for (int i = 0; i < 0x80'000; i += 4)
         {
-            printf("%08x %08x %08x %08x\n", rdram_[i], rdram_[i + 1], rdram_[i + 2], rdram_[i + 3]);
+            printf("%08x %08x %08x %08x\n", rdram[i], rdram[i + 1], rdram[i + 2], rdram[i + 3]);
         }
     }
 
@@ -1247,12 +1241,12 @@ namespace cerberus
         if (!CP0Status.EXL)
         {
             int64_t new_pc = static_cast<int32_t>(address);
-            if (prev_branch_)
+            if (prevBranch)
             {
                 new_pc -= 4;
             }
-            CP0Cause.BD = prev_branch_;
-            cp0_regs_[CP0_EPC].UD = new_pc;
+            CP0Cause.BD = prevBranch;
+            cp0s[CP0_EPC].UD = new_pc;
         }
         else
         {
@@ -1267,12 +1261,12 @@ namespace cerberus
         {
             case ExceptionType::CoprocessorUnusable:
             {
-                Logger::WarnOnce("Coprocessor unusable exception {:08x}", instruction_.full);
+                Logger::WarnOnce("Coprocessor unusable exception {:08x}", instruction.full);
                 goto handler;
             }
             case ExceptionType::FloatingPoint:
             {
-                Logger::Warn("Floating point exception {:08x}", instruction_.full);
+                Logger::Warn("Floating point exception {:08x}", instruction.full);
                 goto handler;
             }
             case ExceptionType::Trap:
@@ -1286,8 +1280,8 @@ namespace cerberus
             case ExceptionType::ReservedInstruction:
             handler:
             {
-                pc_ = 0x8000'0180;
-                next_pc_ = pc_ + 4;
+                Pc = 0x8000'0180;
+                nextPc = Pc + 4;
                 break;
             }
             default:
@@ -1297,16 +1291,16 @@ namespace cerberus
         }
     }
 
-#define rdreg (gpr_regs_[instruction_.RType.rd])
-#define rsreg (gpr_regs_[instruction_.RType.rs])
-#define rtreg (gpr_regs_[instruction_.RType.rt])
-#define saval (instruction_.RType.sa)
-#define immval (instruction_.IType.immediate)
-#define seimmval (static_cast<int64_t>(static_cast<int16_t>(instruction_.IType.immediate)))
-#define fmtval (instruction_.FType.fmt)
-#define ftreg (fpr_regs_[instruction_.FType.ft])
-#define fsreg (fpr_regs_[instruction_.FType.fs])
-#define fdreg (fpr_regs_[instruction_.FType.fd])
+#define rdreg (gprs[instruction.RType.rd])
+#define rsreg (gprs[instruction.RType.rs])
+#define rtreg (gprs[instruction.RType.rt])
+#define saval (instruction.RType.sa)
+#define immval (instruction.IType.immediate)
+#define seimmval (static_cast<int64_t>(static_cast<int16_t>(instruction.IType.immediate)))
+#define fmtval (instruction.FType.fmt)
+#define ftreg (fprs[instruction.FType.ft])
+#define fsreg (fprs[instruction.FType.fs])
+#define fdreg (fprs[instruction.FType.fd])
 
     void CPU::LDL()
     {
@@ -1435,7 +1429,7 @@ namespace cerberus
             // If either of the loworder two bits of the address are not zero, an
             // address error exception occurs.
             set_cp0_regs_exception(address);
-            throw_exception(prev_pc_, ExceptionType::AddressErrorStore);
+            throw_exception(prevPc, ExceptionType::AddressErrorStore);
             return;
         }
         if (!is_kernel_mode())
@@ -1444,7 +1438,7 @@ namespace cerberus
             // 32-bit Kernel mode. Execution of this instruction in 32-bit User or
             // Supervisor mode causes a reserved instruction exception.
             printf("Forgot to check 32 bit mode for: SD");
-            throw_exception(prev_pc_, ExceptionType::ReservedInstruction);
+            throw_exception(prevPc, ExceptionType::ReservedInstruction);
         }
         store_doubleword(address, rtreg.UD);
     }
@@ -1459,7 +1453,7 @@ namespace cerberus
             // If either of the loworder two bits of the address are not zero, an
             // address error exception occurs.
             set_cp0_regs_exception(address);
-            throw_exception(prev_pc_, ExceptionType::AddressErrorStore);
+            throw_exception(prevPc, ExceptionType::AddressErrorStore);
             return;
         }
         if ((address >> 31) && static_cast<int64_t>(address) > 0)
@@ -1467,7 +1461,7 @@ namespace cerberus
             // If bit 31 is set and address is positive, that means it's not sign
             // extended, an address error exception occurs.
             set_cp0_regs_exception(address);
-            throw_exception(prev_pc_, ExceptionType::AddressErrorStore);
+            throw_exception(prevPc, ExceptionType::AddressErrorStore);
             return;
         }
         store_word(address, rtreg.UW._0);
@@ -1483,7 +1477,7 @@ namespace cerberus
             // If either of the loworder two bits of the address are not zero, an
             // address error exception occurs.
             set_cp0_regs_exception(address);
-            throw_exception(prev_pc_, ExceptionType::AddressErrorStore);
+            throw_exception(prevPc, ExceptionType::AddressErrorStore);
             return;
         }
         store_halfword(address, rtreg.UH._0);
@@ -1500,7 +1494,7 @@ namespace cerberus
             // If either of the loworder two bits of the address are not zero, an
             // address error exception occurs.
             set_cp0_regs_exception(address);
-            throw_exception(prev_pc_, ExceptionType::AddressErrorStore);
+            throw_exception(prevPc, ExceptionType::AddressErrorStore);
             return;
         }
 
@@ -1546,7 +1540,7 @@ namespace cerberus
             // If the least-significant bit of the address is not zero, an address error
             // exception occurs.
             set_cp0_regs_exception(address);
-            throw_exception(prev_pc_, ExceptionType::AddressErrorLoad);
+            throw_exception(prevPc, ExceptionType::AddressErrorLoad);
             return;
         }
         rtreg.D = static_cast<int16_t>(load_halfword(address));
@@ -1569,7 +1563,7 @@ namespace cerberus
             // If either of the loworder two bits of the address are not zero, an
             // address error exception occurs.
             set_cp0_regs_exception(address);
-            throw_exception(prev_pc_, ExceptionType::AddressErrorLoad);
+            throw_exception(prevPc, ExceptionType::AddressErrorLoad);
             return;
         }
         if ((address >> 31) && static_cast<int64_t>(address) > 0)
@@ -1577,7 +1571,7 @@ namespace cerberus
             // If bit 31 is set and address is positive, that means it's not sign
             // extended, an address error exception occurs.
             set_cp0_regs_exception(address);
-            throw_exception(prev_pc_, ExceptionType::AddressErrorLoad);
+            throw_exception(prevPc, ExceptionType::AddressErrorLoad);
             return;
         }
         rtreg.D = static_cast<int32_t>(load_word(address));
@@ -1593,7 +1587,7 @@ namespace cerberus
             // If either of the loworder two bits of the address are not zero, an
             // address error exception occurs.
             set_cp0_regs_exception(address);
-            throw_exception(prev_pc_, ExceptionType::AddressErrorLoad);
+            throw_exception(prevPc, ExceptionType::AddressErrorLoad);
             return;
         }
         if (!is_kernel_mode()) // TODO: check 64 bit mode
@@ -1602,7 +1596,7 @@ namespace cerberus
             // 32-bit Kernel mode. Execution of this instruction in 32-bit User or
             // Supervisor mode causes a reserved instruction exception.
             printf("Forgot to check 32 bit mode for: LD");
-            throw_exception(prev_pc_, ExceptionType::ReservedInstruction);
+            throw_exception(prevPc, ExceptionType::ReservedInstruction);
             return;
         }
         rtreg.UD = load_doubleword(address);
@@ -1618,7 +1612,7 @@ namespace cerberus
             // If either of the loworder two bits of the address are not zero, an
             // address error exception occurs.
             set_cp0_regs_exception(address);
-            throw_exception(prev_pc_, ExceptionType::AddressErrorLoad);
+            throw_exception(prevPc, ExceptionType::AddressErrorLoad);
             return;
         }
         rtreg.D = static_cast<int32_t>(load_word(address));
@@ -1630,55 +1624,55 @@ namespace cerberus
     {
         int16_t offset = immval << 2;
         int32_t seoffset = offset;
-        conditional_branch_likely(rsreg.D > 0, pc_ + seoffset);
+        conditional_branch_likely(rsreg.D > 0, Pc + seoffset);
     }
 
     void CPU::BLEZ()
     {
         int32_t seoffset = static_cast<int16_t>(immval << 2);
-        conditional_branch(rsreg.D <= 0, pc_ + seoffset);
+        conditional_branch(rsreg.D <= 0, Pc + seoffset);
     }
 
     void CPU::BEQ()
     {
         int16_t offset = immval << 2;
         int32_t seoffset = offset;
-        conditional_branch(rsreg.UD == rtreg.UD, pc_ + seoffset);
+        conditional_branch(rsreg.UD == rtreg.UD, Pc + seoffset);
     }
 
     void CPU::BEQL()
     {
         int16_t offset = immval << 2;
         int32_t seoffset = offset;
-        conditional_branch_likely(rsreg.UD == rtreg.UD, pc_ + seoffset);
+        conditional_branch_likely(rsreg.UD == rtreg.UD, Pc + seoffset);
     }
 
     void CPU::BNE()
     {
         int16_t offset = immval << 2;
         int32_t seoffset = offset;
-        conditional_branch(rsreg.UD != rtreg.UD, pc_ + seoffset);
+        conditional_branch(rsreg.UD != rtreg.UD, Pc + seoffset);
     }
 
     void CPU::BNEL()
     {
         int16_t offset = immval << 2;
         int32_t seoffset = offset;
-        conditional_branch_likely(rsreg.UD != rtreg.UD, pc_ + seoffset);
+        conditional_branch_likely(rsreg.UD != rtreg.UD, Pc + seoffset);
     }
 
     void CPU::BLEZL()
     {
         int16_t offset = immval << 2;
         int32_t seoffset = offset;
-        conditional_branch_likely(rsreg.D <= 0, pc_ + seoffset);
+        conditional_branch_likely(rsreg.D <= 0, Pc + seoffset);
     }
 
     void CPU::BGTZ()
     {
         int16_t offset = immval << 2;
         int32_t seoffset = offset;
-        conditional_branch(rsreg.D > 0, pc_ + seoffset);
+        conditional_branch(rsreg.D > 0, Pc + seoffset);
     }
 
     void CPU::JAL()
@@ -1689,14 +1683,14 @@ namespace cerberus
 
     void CPU::J()
     {
-        auto jump_addr = instruction_.JType.target;
+        auto jump_addr = instruction.JType.target;
         // combine first 3 bits of pc and jump_addr shifted left by 2
-        branch_to(((pc_ - 4) & 0xF000'0000) | (jump_addr << 2));
+        branch_to(((Pc - 4) & 0xF000'0000) | (jump_addr << 2));
     }
 
     void CPU::s_JALR()
     {
-        link_register(instruction_.RType.rd);
+        link_register(instruction.RType.rd);
         // Register numbers rs and rd should not be equal, because such an instruction
         // does not have the same effect when re-executed. If they are equal, the
         // contents of rs are destroyed by storing link address. However, if an
@@ -1704,7 +1698,7 @@ namespace cerberus
         // and the result of executing such an instruction is undefined.
         if (rdreg.UD != rsreg.UD)
         {
-            // throw_exception(prev_pc_, ExceptionType::AddressErrorLoad);
+            // throw_exception(prevPc, ExceptionType::AddressErrorLoad);
         }
         s_JR();
     }
@@ -1729,28 +1723,28 @@ namespace cerberus
     {
         int16_t offset = immval << 2;
         int32_t seoffset = offset;
-        conditional_branch(rsreg.D < 0, pc_ + seoffset);
+        conditional_branch(rsreg.D < 0, Pc + seoffset);
     }
 
     void CPU::r_BGEZ()
     {
         int16_t offset = immval << 2;
         int32_t seoffset = offset;
-        conditional_branch(rsreg.W._0 >= 0, pc_ + seoffset);
+        conditional_branch(rsreg.W._0 >= 0, Pc + seoffset);
     }
 
     void CPU::r_BLTZL()
     {
         int16_t offset = immval << 2;
         int32_t seoffset = offset;
-        conditional_branch_likely(rsreg.D < 0, pc_ + seoffset);
+        conditional_branch_likely(rsreg.D < 0, Pc + seoffset);
     }
 
     void CPU::r_BGEZL()
     {
         int16_t offset = immval << 2;
         int32_t seoffset = offset;
-        conditional_branch_likely(rsreg.W._0 >= 0, pc_ + seoffset);
+        conditional_branch_likely(rsreg.W._0 >= 0, Pc + seoffset);
     }
 
     void CPU::r_BLTZAL()
@@ -1762,7 +1756,7 @@ namespace cerberus
     {
         int16_t offset = immval << 2;
         int32_t seoffset = offset;
-        conditional_branch(rsreg.D >= 0, pc_ + seoffset);
+        conditional_branch(rsreg.D >= 0, Pc + seoffset);
         link_register(31);
     }
 
@@ -1776,7 +1770,7 @@ namespace cerberus
         int16_t offset = immval << 2;
         int32_t seoffset = offset;
         link_register(31);
-        conditional_branch_likely(rsreg.D >= 0, pc_ + seoffset);
+        conditional_branch_likely(rsreg.D >= 0, Pc + seoffset);
     }
 
     void CPU::s_SLL()
@@ -1860,7 +1854,7 @@ namespace cerberus
         bool overflow = hydra::add_overflow(rtreg.W._0, rsreg.W._0, result);
         if (overflow)
         {
-            return throw_exception(prev_pc_, ExceptionType::IntegerOverflow);
+            return throw_exception(prevPc, ExceptionType::IntegerOverflow);
         }
         rdreg.UD = static_cast<int64_t>(result);
     }
@@ -1876,7 +1870,7 @@ namespace cerberus
         bool overflow = hydra::add_overflow(rtreg.D, rsreg.D, result);
         if (overflow)
         {
-            return throw_exception(prev_pc_, ExceptionType::IntegerOverflow);
+            return throw_exception(prevPc, ExceptionType::IntegerOverflow);
         }
         rdreg.D = result;
     }
@@ -1892,7 +1886,7 @@ namespace cerberus
         bool overflow = hydra::sub_overflow(rsreg.W._0, rtreg.W._0, result);
         if (overflow)
         {
-            return throw_exception(prev_pc_, ExceptionType::IntegerOverflow);
+            return throw_exception(prevPc, ExceptionType::IntegerOverflow);
         }
         rdreg.D = result;
     }
@@ -1908,7 +1902,7 @@ namespace cerberus
         bool overflow = hydra::sub_overflow(rsreg.D, rtreg.D, result);
         if (overflow)
         {
-            return throw_exception(prev_pc_, ExceptionType::IntegerOverflow);
+            return throw_exception(prevPc, ExceptionType::IntegerOverflow);
         }
         rdreg.D = result;
     }
@@ -1921,61 +1915,61 @@ namespace cerberus
     void CPU::s_MULT()
     {
         uint64_t res = static_cast<int64_t>(rsreg.W._0) * rtreg.W._0;
-        lo_ = static_cast<int64_t>(static_cast<int32_t>(res & 0xFFFF'FFFF));
-        hi_ = static_cast<int64_t>(static_cast<int32_t>(res >> 32));
+        mulLo = static_cast<int64_t>(static_cast<int32_t>(res & 0xFFFF'FFFF));
+        mulHi = static_cast<int64_t>(static_cast<int32_t>(res >> 32));
     }
 
     void CPU::s_MULTU()
     {
         uint64_t res = static_cast<uint64_t>(rsreg.UW._0) * rtreg.UW._0;
-        lo_ = static_cast<int64_t>(static_cast<int32_t>(res & 0xFFFF'FFFF));
-        hi_ = static_cast<int64_t>(static_cast<int32_t>(res >> 32));
+        mulLo = static_cast<int64_t>(static_cast<int32_t>(res & 0xFFFF'FFFF));
+        mulHi = static_cast<int64_t>(static_cast<int32_t>(res >> 32));
     }
 
     void CPU::s_DMULT()
     {
         auto [high, low] = hydra::mul64(rsreg.D, rtreg.D);
-        hi_ = high;
-        lo_ = low;
+        mulHi = high;
+        mulLo = low;
     }
 
     void CPU::s_DMULTU()
     {
         auto [high, low] = hydra::mul64(rsreg.UD, rtreg.UD);
-        hi_ = high;
-        lo_ = low;
+        mulHi = high;
+        mulLo = low;
     }
 
     void CPU::s_DIV()
     {
         if (rtreg.W._0 == 0) [[unlikely]]
         {
-            lo_ = rsreg.W._0 < 0 ? 1 : -1;
-            hi_ = static_cast<int64_t>(rsreg.W._0);
+            mulLo = rsreg.W._0 < 0 ? 1 : -1;
+            mulHi = static_cast<int64_t>(rsreg.W._0);
             return;
         }
         // TODO: replace with uint64_t division
         if (rsreg.W._0 == std::numeric_limits<decltype(rsreg.W._0)>::min() && rtreg.W._0 == -1)
             [[unlikely]]
         {
-            lo_ = static_cast<int64_t>(rsreg.W._0);
-            hi_ = 0;
+            mulLo = static_cast<int64_t>(rsreg.W._0);
+            mulHi = 0;
             return;
         }
-        lo_ = rsreg.W._0 / rtreg.W._0;
-        hi_ = rsreg.W._0 % rtreg.W._0;
+        mulLo = rsreg.W._0 / rtreg.W._0;
+        mulHi = rsreg.W._0 % rtreg.W._0;
     }
 
     void CPU::s_DIVU()
     {
         if (rtreg.UW._0 == 0) [[unlikely]]
         {
-            lo_ = -1;
-            hi_ = rsreg.UD;
+            mulLo = -1;
+            mulHi = rsreg.UD;
             return;
         }
-        lo_ = rsreg.UW._0 / rtreg.UW._0;
-        hi_ = rsreg.UW._0 % rtreg.UW._0;
+        mulLo = rsreg.UW._0 / rtreg.UW._0;
+        mulHi = rsreg.UW._0 % rtreg.UW._0;
     }
 
     void CPU::s_DDIV()
@@ -1983,30 +1977,30 @@ namespace cerberus
         if (rtreg.D == 0) [[unlikely]]
         {
             bool sign = rsreg.UD >> 63;
-            lo_ = sign ? 1 : -1;
-            hi_ = rsreg.UD;
+            mulLo = sign ? 1 : -1;
+            mulHi = rsreg.UD;
             return;
         }
         if (rsreg.D == std::numeric_limits<int64_t>::min() && rtreg.D == -1)
         {
-            lo_ = rsreg.D;
-            hi_ = 0;
+            mulLo = rsreg.D;
+            mulHi = 0;
             return;
         }
-        lo_ = rsreg.D / rtreg.D;
-        hi_ = rsreg.D % rtreg.D;
+        mulLo = rsreg.D / rtreg.D;
+        mulHi = rsreg.D % rtreg.D;
     }
 
     void CPU::s_DDIVU()
     {
         if (rtreg.UD == 0) [[unlikely]]
         {
-            lo_ = -1;
-            hi_ = rsreg.UD;
+            mulLo = -1;
+            mulHi = rsreg.UD;
             return;
         }
-        lo_ = static_cast<int64_t>(rsreg.UD / rtreg.UD);
-        hi_ = static_cast<int64_t>(rsreg.UD % rtreg.UD);
+        mulLo = static_cast<int64_t>(rsreg.UD / rtreg.UD);
+        mulHi = static_cast<int64_t>(rsreg.UD % rtreg.UD);
     }
 
     void CPU::s_AND()
@@ -2033,7 +2027,7 @@ namespace cerberus
     {
         if (rsreg.D >= rtreg.D)
         {
-            throw_exception(prev_pc_, ExceptionType::Trap);
+            throw_exception(prevPc, ExceptionType::Trap);
         }
     }
 
@@ -2041,7 +2035,7 @@ namespace cerberus
     {
         if (rsreg.UD >= rtreg.UD)
         {
-            throw_exception(prev_pc_, ExceptionType::Trap);
+            throw_exception(prevPc, ExceptionType::Trap);
         }
     }
 
@@ -2049,7 +2043,7 @@ namespace cerberus
     {
         if (rsreg.D < rtreg.D)
         {
-            throw_exception(prev_pc_, ExceptionType::Trap);
+            throw_exception(prevPc, ExceptionType::Trap);
         }
     }
 
@@ -2057,7 +2051,7 @@ namespace cerberus
     {
         if (rsreg.UD < rtreg.UD)
         {
-            throw_exception(prev_pc_, ExceptionType::Trap);
+            throw_exception(prevPc, ExceptionType::Trap);
         }
     }
 
@@ -2065,7 +2059,7 @@ namespace cerberus
     {
         if (rsreg.UD == rtreg.UD)
         {
-            throw_exception(prev_pc_, ExceptionType::Trap);
+            throw_exception(prevPc, ExceptionType::Trap);
         }
     }
 
@@ -2073,7 +2067,7 @@ namespace cerberus
     {
         if (rsreg.UD != rtreg.UD)
         {
-            throw_exception(prev_pc_, ExceptionType::Trap);
+            throw_exception(prevPc, ExceptionType::Trap);
         }
     }
 
@@ -2081,7 +2075,7 @@ namespace cerberus
     {
         if (rsreg.D >= seimmval)
         {
-            throw_exception(prev_pc_, ExceptionType::Trap);
+            throw_exception(prevPc, ExceptionType::Trap);
         }
     }
 
@@ -2089,7 +2083,7 @@ namespace cerberus
     {
         if (rsreg.UD >= static_cast<uint64_t>(seimmval))
         {
-            throw_exception(prev_pc_, ExceptionType::Trap);
+            throw_exception(prevPc, ExceptionType::Trap);
         }
     }
 
@@ -2097,7 +2091,7 @@ namespace cerberus
     {
         if (rsreg.D < seimmval)
         {
-            throw_exception(prev_pc_, ExceptionType::Trap);
+            throw_exception(prevPc, ExceptionType::Trap);
         }
     }
 
@@ -2105,7 +2099,7 @@ namespace cerberus
     {
         if (rsreg.UD < static_cast<uint64_t>(seimmval))
         {
-            throw_exception(prev_pc_, ExceptionType::Trap);
+            throw_exception(prevPc, ExceptionType::Trap);
         }
     }
 
@@ -2113,7 +2107,7 @@ namespace cerberus
     {
         if (rsreg.D == seimmval)
         {
-            throw_exception(prev_pc_, ExceptionType::Trap);
+            throw_exception(prevPc, ExceptionType::Trap);
         }
     }
 
@@ -2121,7 +2115,7 @@ namespace cerberus
     {
         if (rsreg.D != seimmval)
         {
-            throw_exception(prev_pc_, ExceptionType::Trap);
+            throw_exception(prevPc, ExceptionType::Trap);
         }
     }
 
@@ -2137,54 +2131,54 @@ namespace cerberus
 
     void CPU::s_SYSCALL()
     {
-        throw_exception(prev_pc_, ExceptionType::Syscall);
+        throw_exception(prevPc, ExceptionType::Syscall);
     }
 
     void CPU::s_BREAK()
     {
-        throw_exception(prev_pc_, ExceptionType::Breakpoint);
+        throw_exception(prevPc, ExceptionType::Breakpoint);
     }
 
     void CPU::s_SYNC() {}
 
     void CPU::s_MFHI()
     {
-        rdreg.UD = hi_;
+        rdreg.UD = mulHi;
     }
 
     void CPU::s_MTHI()
     {
-        hi_ = rsreg.UD;
+        mulHi = rsreg.UD;
     }
 
     void CPU::s_MFLO()
     {
-        rdreg.UD = lo_;
+        rdreg.UD = mulLo;
     }
 
     void CPU::s_MTLO()
     {
-        lo_ = rsreg.UD;
+        mulLo = rsreg.UD;
     }
 
     void CPU::ERROR()
     {
-        Logger::Fatal("Error instruction at PC: {:08X}, instruction: {}", pc_, instruction_.full);
+        Logger::Fatal("Error instruction at PC: {:08X}, instruction: {}", Pc, instruction.full);
     }
 
     void CPU::SPECIAL()
     {
-        (special_table_[instruction_.RType.func])(this);
+        (special_table_[instruction.RType.func])(this);
     }
 
     void CPU::REGIMM()
     {
-        (regimm_table_[instruction_.RType.rt])(this);
+        (regimm_table_[instruction.RType.rt])(this);
     }
 
     void CPU::RDHWR()
     {
-        throw_exception(prev_pc_, ExceptionType::ReservedInstruction);
+        throw_exception(prevPc, ExceptionType::ReservedInstruction);
     }
 
     void CPU::COP0()
@@ -2198,9 +2192,9 @@ namespace cerberus
         // TODO: preserve cause
         if (!CP0Status.CP1)
         {
-            return throw_exception(prev_pc_, ExceptionType::CoprocessorUnusable, 1);
+            return throw_exception(prevPc, ExceptionType::CoprocessorUnusable, 1);
         }
-        switch (instruction_.RType.rs)
+        switch (instruction.RType.rs)
         {
             case 0b00010:
                 f_CFC1();
@@ -2221,38 +2215,38 @@ namespace cerberus
                 f_CTC1();
                 break;
             case 0b01000:
-                switch (instruction_.RType.rt)
+                switch (instruction.RType.rt)
                 {
                     case 0:
                     {
                         int16_t offset = immval << 2;
                         int32_t seoffset = offset;
-                        conditional_branch(!fcr31_.compare, pc_ + seoffset);
-                        was_branch_ = false;
+                        conditional_branch(!fcr31.compare, Pc + seoffset);
+                        wasBranch = false;
                         break;
                     }
                     case 1:
                     {
                         int16_t offset = immval << 2;
                         int32_t seoffset = offset;
-                        conditional_branch(fcr31_.compare, pc_ + seoffset);
-                        was_branch_ = false;
+                        conditional_branch(fcr31.compare, Pc + seoffset);
+                        wasBranch = false;
                         break;
                     }
                     case 2:
                     {
                         int16_t offset = immval << 2;
                         int32_t seoffset = offset;
-                        conditional_branch_likely(!fcr31_.compare, pc_ + seoffset);
-                        was_branch_ = false;
+                        conditional_branch_likely(!fcr31.compare, Pc + seoffset);
+                        wasBranch = false;
                         break;
                     }
                     case 3:
                     {
                         int16_t offset = immval << 2;
                         int32_t seoffset = offset;
-                        conditional_branch_likely(fcr31_.compare, pc_ + seoffset);
-                        was_branch_ = false;
+                        conditional_branch_likely(fcr31.compare, Pc + seoffset);
+                        wasBranch = false;
                         break;
                     }
                     default:
@@ -2266,15 +2260,15 @@ namespace cerberus
             {
                 if (!CP0Status.CP1)
                 {
-                    return throw_exception(prev_pc_, ExceptionType::CoprocessorUnusable, 1);
+                    return throw_exception(prevPc, ExceptionType::CoprocessorUnusable, 1);
                 }
-                fcr31_.cause_divbyzero = 0;
-                fcr31_.cause_inexact = 0;
-                fcr31_.cause_invalidop = 0;
-                fcr31_.cause_overflow = 0;
-                fcr31_.cause_underflow = 0;
-                fcr31_.unimplemented = 1;
-                return throw_exception(prev_pc_, ExceptionType::FloatingPoint, 0);
+                fcr31.cause_divbyzero = 0;
+                fcr31.cause_inexact = 0;
+                fcr31.cause_invalidop = 0;
+                fcr31.cause_overflow = 0;
+                fcr31.cause_underflow = 0;
+                fcr31.unimplemented = 1;
+                return throw_exception(prevPc, ExceptionType::FloatingPoint, 0);
             }
             case 0x9:
             case 0xA:
@@ -2283,10 +2277,10 @@ namespace cerberus
             case 0xD:
             case 0xE:
             case 0xF:
-                return throw_exception(prev_pc_, ExceptionType::ReservedInstruction);
+                return throw_exception(prevPc, ExceptionType::ReservedInstruction);
             default:
             {
-                (float_table_[instruction_.RType.func])(this);
+                (float_table_[instruction.RType.func])(this);
                 break;
             }
         }
@@ -2296,7 +2290,7 @@ namespace cerberus
     {
         if (!CP0Status.CP2)
         {
-            return throw_exception(prev_pc_, ExceptionType::CoprocessorUnusable, 2);
+            return throw_exception(prevPc, ExceptionType::CoprocessorUnusable, 2);
         }
         rtreg.D = static_cast<int32_t>(cp2_latch_);
     }
@@ -2305,7 +2299,7 @@ namespace cerberus
     {
         if (!CP0Status.CP2)
         {
-            return throw_exception(prev_pc_, ExceptionType::CoprocessorUnusable, 2);
+            return throw_exception(prevPc, ExceptionType::CoprocessorUnusable, 2);
         }
         rtreg.D = cp2_latch_;
     }
@@ -2314,7 +2308,7 @@ namespace cerberus
     {
         if (!CP0Status.CP2)
         {
-            return throw_exception(prev_pc_, ExceptionType::CoprocessorUnusable, 2);
+            return throw_exception(prevPc, ExceptionType::CoprocessorUnusable, 2);
         }
         cp2_latch_ = rtreg.UD;
     }
@@ -2323,7 +2317,7 @@ namespace cerberus
     {
         if (!CP0Status.CP2)
         {
-            return throw_exception(prev_pc_, ExceptionType::CoprocessorUnusable, 2);
+            return throw_exception(prevPc, ExceptionType::CoprocessorUnusable, 2);
         }
         cp2_latch_ = rtreg.UD;
     }
@@ -2332,7 +2326,7 @@ namespace cerberus
     {
         if (!CP0Status.CP2)
         {
-            return throw_exception(prev_pc_, ExceptionType::CoprocessorUnusable, 2);
+            return throw_exception(prevPc, ExceptionType::CoprocessorUnusable, 2);
         }
     }
 
@@ -2340,13 +2334,13 @@ namespace cerberus
     {
         if (!CP0Status.CP2)
         {
-            return throw_exception(prev_pc_, ExceptionType::CoprocessorUnusable, 2);
+            return throw_exception(prevPc, ExceptionType::CoprocessorUnusable, 2);
         }
     }
 
     void CPU::COP2()
     {
-        switch (instruction_.RType.rs)
+        switch (instruction.RType.rs)
         {
             case 0:
                 return MFC2();
@@ -2364,11 +2358,11 @@ namespace cerberus
             {
                 if (!CP0Status.CP2)
                 {
-                    throw_exception(prev_pc_, ExceptionType::CoprocessorUnusable, 2);
+                    throw_exception(prevPc, ExceptionType::CoprocessorUnusable, 2);
                 }
                 else
                 {
-                    throw_exception(prev_pc_, ExceptionType::ReservedInstruction, 2);
+                    throw_exception(prevPc, ExceptionType::ReservedInstruction, 2);
                 }
             }
         }
@@ -2376,7 +2370,7 @@ namespace cerberus
 
     void CPU::COP3()
     {
-        throw_exception(prev_pc_, ExceptionType::ReservedInstruction, 0);
+        throw_exception(prevPc, ExceptionType::ReservedInstruction, 0);
     }
 
     void CPU::CACHE()
@@ -2399,7 +2393,7 @@ namespace cerberus
             // An integer overflow exception occurs if carries out of bits 30 and 31
             // differ (2’s complement overflow). The contents of destination register rt
             // is not modified when an integer overflow exception occurs.
-            return throw_exception(prev_pc_, ExceptionType::IntegerOverflow);
+            return throw_exception(prevPc, ExceptionType::IntegerOverflow);
         }
         rtreg.D = static_cast<int32_t>(result);
     }
@@ -2419,7 +2413,7 @@ namespace cerberus
             // An integer overflow exception occurs if carries out of bits 30 and 31
             // differ (2’s complement overflow). The contents of destination register rt
             // is not modified when an integer overflow exception occurs.
-            return throw_exception(prev_pc_, ExceptionType::IntegerOverflow);
+            return throw_exception(prevPc, ExceptionType::IntegerOverflow);
         }
         rtreg.D = result;
     }
@@ -2459,23 +2453,23 @@ namespace cerberus
 
     void CPU::MTC0()
     {
-        set_cp0_register_32(instruction_.RType.rd, rtreg.UW._0);
+        set_cp0_register_32(instruction.RType.rd, rtreg.UW._0);
     }
 
     void CPU::DMTC0()
     {
-        set_cp0_register_64(instruction_.RType.rd, rtreg.UD);
+        set_cp0_register_64(instruction.RType.rd, rtreg.UD);
     }
 
     void CPU::MFC0()
     {
-        int32_t value = get_cp0_register_32(instruction_.RType.rd);
+        int32_t value = get_cp0_register_32(instruction.RType.rd);
         rtreg.D = value;
     }
 
     void CPU::DMFC0()
     {
-        uint64_t value = get_cp0_register_64(instruction_.RType.rd);
+        uint64_t value = get_cp0_register_64(instruction.RType.rd);
         rtreg.UD = value;
     }
 
@@ -2484,18 +2478,18 @@ namespace cerberus
         switch (reg)
         {
             case CP0_INDEX:
-                return cp0_regs_[reg].UW._0 & 0x8000'003F;
+                return cp0s[reg].UW._0 & 0x8000'003F;
             case CP0_COUNT:
-                return clock_ >> 1;
+                return cycleClock >> 1;
             case CP0_CAUSE:
             {
                 CP0CauseType newcause;
-                newcause.full = cp0_regs_[reg].UD;
+                newcause.full = cp0s[reg].UD;
                 return newcause.full;
             }
             case CP0_RANDOM:
             {
-                uint8_t wired = cp0_regs_[CP0_WIRED].UB._0;
+                uint8_t wired = cp0s[CP0_WIRED].UB._0;
                 int start = 0;
                 int end = 64;
 
@@ -2520,7 +2514,7 @@ namespace cerberus
             case 31:
                 return cp0_latch_;
             default:
-                return cp0_regs_[reg].UW._0;
+                return cp0s[reg].UW._0;
         }
     }
 
@@ -2538,9 +2532,9 @@ namespace cerberus
             case CP0_PRID:
             case CP0_LLADDR:
             case CP0_ERROREPC:
-                return cp0_regs_[reg].UD;
+                return cp0s[reg].UD;
             case CP0_XCONTEXT:
-                return cp0_regs_[reg].UD & 0xFFFFFFFFFFFFFFF0;
+                return cp0s[reg].UD & 0xFFFFFFFFFFFFFFF0;
             default:
                 Logger::Fatal("Reading 64 bits from COP0 register {}", reg);
                 return 0;
@@ -2573,13 +2567,13 @@ namespace cerberus
                     unmaskedmask.full = value;
                     newmask.mask = unmaskedmask.mask;
                 }
-                cp0_regs_[reg].UD = newmask.full;
+                cp0s[reg].UD = newmask.full;
                 break;
             }
             case CP0_ENTRYLO0:
             case CP0_ENTRYLO1:
             {
-                cp0_regs_[reg].UD = value & 0x3FFF'FFFF;
+                cp0s[reg].UD = value & 0x3FFF'FFFF;
                 break;
             }
             case CP0_CAUSE:
@@ -2594,20 +2588,20 @@ namespace cerberus
             case CP0_COMPARE:
             {
                 CP0Cause.IP7 = false;
-                cp0_regs_[reg].UD = value;
-                scheduler_.unschedule(TaskType::Compare);
-                scheduler_.schedule(value << 1, TaskType::Compare);
+                cp0s[reg].UD = value;
+                scheduler.unschedule(TaskType::Compare);
+                scheduler.schedule(value << 1, TaskType::Compare);
                 break;
             }
             case CP0_COUNT:
             {
-                clock_ = value << 1;
+                cycleClock = value << 1;
                 break;
             }
             case CP0_CONFIG:
             {
-                cp0_regs_[reg].UD &= ~0x0F00800F;
-                cp0_regs_[reg].UD |= value & 0x0F00800F;
+                cp0s[reg].UD &= ~0x0F00800F;
+                cp0s[reg].UD |= value & 0x0F00800F;
                 break;
             }
             case CP0_CONTEXT:
@@ -2635,12 +2629,12 @@ namespace cerberus
             }
             case CP0_PARITYERROR:
             {
-                cp0_regs_[reg].UD = value & 0xFF;
+                cp0s[reg].UD = value & 0xFF;
                 break;
             }
             case CP0_WIRED:
             {
-                cp0_regs_[reg].UD = value & 0x3F;
+                cp0s[reg].UD = value & 0x3F;
                 break;
             }
             case CP0_PRID:
@@ -2652,7 +2646,7 @@ namespace cerberus
             }
             default:
             {
-                cp0_regs_[reg].UD = value;
+                cp0s[reg].UD = value;
                 return;
             }
         }
@@ -2665,23 +2659,23 @@ namespace cerberus
             case CP0_ENTRYLO0:
             case CP0_ENTRYLO1:
             {
-                cp0_regs_[reg].UD = value & 0x3FFF'FFFF;
+                cp0s[reg].UD = value & 0x3FFF'FFFF;
                 break;
             }
             case CP0_CONTEXT:
             {
-                cp0_regs_[reg].UD = (value & 0xFFFFFFFFFF800000) | (cp0_regs_[reg].UD & 0x7FFFFF);
+                cp0s[reg].UD = (value & 0xFFFFFFFFFF800000) | (cp0s[reg].UD & 0x7FFFFF);
                 break;
             }
             case CP0_ENTRYHI:
             {
-                cp0_regs_[reg].UD = value & 0xC00000FFFFFFE0FF;
+                cp0s[reg].UD = value & 0xC00000FFFFFFE0FF;
                 break;
             }
             case CP0_XCONTEXT:
             {
-                cp0_regs_[reg].UD =
-                    (value & 0xFFFFFFFE00000000) | (cp0_regs_[reg].UD & 0x00000001FFFFFFFF);
+                cp0s[reg].UD =
+                    (value & 0xFFFFFFFE00000000) | (cp0s[reg].UD & 0x00000001FFFFFFFF);
                 break;
             }
             case CP0_LLADDR:
@@ -2690,7 +2684,7 @@ namespace cerberus
             case CP0_EPC:
             case CP0_ERROREPC:
             {
-                cp0_regs_[reg].UD = value;
+                cp0s[reg].UD = value;
                 break;
             }
             case CP0_CAUSE:
@@ -2823,25 +2817,25 @@ namespace cerberus
     template <>
     double CPU::get_fpu_reg<double>(int regnum)
     {
-        return fpr_regs_[regnum].DOUBLE;
+        return fprs[regnum].DOUBLE;
     }
 
     template <>
     float CPU::get_fpu_reg<float>(int regnum)
     {
-        return fpr_regs_[regnum].FLOAT._0;
+        return fprs[regnum].FLOAT._0;
     }
 
     template <>
     void CPU::set_fpu_reg<double>(int regnum, double data)
     {
-        fpr_regs_[regnum].DOUBLE = data;
+        fprs[regnum].DOUBLE = data;
     }
 
     template <>
     void CPU::set_fpu_reg<float>(int regnum, float data)
     {
-        fpr_regs_[regnum].FLOAT._0 = data;
+        fprs[regnum].FLOAT._0 = data;
     }
 
     template <>
@@ -2850,17 +2844,17 @@ namespace cerberus
         bool _64bit = CP0Status.FR;
         if (_64bit)
         {
-            return fpr_regs_[regnum].UW._0;
+            return fprs[regnum].UW._0;
         }
         else
         {
             if (regnum & 1)
             {
-                return fpr_regs_[regnum & ~1].UW._1;
+                return fprs[regnum & ~1].UW._1;
             }
             else
             {
-                return fpr_regs_[regnum].UW._0;
+                return fprs[regnum].UW._0;
             }
         }
     }
@@ -2873,7 +2867,7 @@ namespace cerberus
         {
             regnum &= ~1;
         }
-        return fpr_regs_[regnum].UD;
+        return fprs[regnum].UD;
     }
 
     template <>
@@ -2882,17 +2876,17 @@ namespace cerberus
         bool _64bit = CP0Status.FR;
         if (_64bit)
         {
-            fpr_regs_[regnum].UW._0 = val;
+            fprs[regnum].UW._0 = val;
         }
         else
         {
             if (regnum & 1)
             {
-                fpr_regs_[regnum & ~1].UW._1 = val;
+                fprs[regnum & ~1].UW._1 = val;
             }
             else
             {
-                fpr_regs_[regnum].UW._0 = val;
+                fprs[regnum].UW._0 = val;
             }
         }
     }
@@ -2905,19 +2899,19 @@ namespace cerberus
         {
             regnum &= ~1;
         }
-        fpr_regs_[regnum].UD = val;
+        fprs[regnum].UD = val;
     }
 
     void CPU::LWC1()
     {
         if (!CP0Status.CP1)
         {
-            return throw_exception(prev_pc_, ExceptionType::CoprocessorUnusable, 1);
+            return throw_exception(prevPc, ExceptionType::CoprocessorUnusable, 1);
         }
         int16_t offset = immval;
         int32_t seoffset = offset;
         uint32_t vaddr = seoffset + rsreg.UW._0;
-        set_fpr_reg<uint32_t>(instruction_.FType.ft, load_word(vaddr));
+        set_fpr_reg<uint32_t>(instruction.FType.ft, load_word(vaddr));
     }
 
     void CPU::LWC2()
@@ -2934,12 +2928,12 @@ namespace cerberus
     {
         if (!CP0Status.CP1)
         {
-            return throw_exception(prev_pc_, ExceptionType::CoprocessorUnusable, 1);
+            return throw_exception(prevPc, ExceptionType::CoprocessorUnusable, 1);
         }
         int16_t offset = immval;
         int32_t seoffset = offset;
         uint32_t vaddr = seoffset + rsreg.UW._0;
-        set_fpr_reg<uint64_t>(instruction_.FType.ft, load_doubleword(vaddr));
+        set_fpr_reg<uint64_t>(instruction.FType.ft, load_doubleword(vaddr));
     }
 
     void CPU::LDC2()
@@ -2951,12 +2945,12 @@ namespace cerberus
     {
         if (!CP0Status.CP1)
         {
-            return throw_exception(prev_pc_, ExceptionType::CoprocessorUnusable, 1);
+            return throw_exception(prevPc, ExceptionType::CoprocessorUnusable, 1);
         }
         int16_t offset = immval;
         int32_t seoffset = offset;
         uint32_t vaddr = seoffset + rsreg.UW._0;
-        store_word(vaddr, get_fpr_reg<uint32_t>(instruction_.FType.ft));
+        store_word(vaddr, get_fpr_reg<uint32_t>(instruction.FType.ft));
     }
 
     void CPU::SWC2()
@@ -2973,12 +2967,12 @@ namespace cerberus
     {
         if (!CP0Status.CP1)
         {
-            return throw_exception(prev_pc_, ExceptionType::CoprocessorUnusable, 1);
+            return throw_exception(prevPc, ExceptionType::CoprocessorUnusable, 1);
         }
         int16_t offset = immval;
         int32_t seoffset = offset;
         uint32_t vaddr = seoffset + rsreg.UW._0;
-        store_doubleword(vaddr, get_fpr_reg<uint64_t>(instruction_.FType.ft));
+        store_doubleword(vaddr, get_fpr_reg<uint64_t>(instruction.FType.ft));
     }
 
     void CPU::SDC2()
@@ -2989,7 +2983,7 @@ namespace cerberus
     void CPU::f_CFC1()
     {
         int32_t val = 0;
-        switch (instruction_.RType.rd)
+        switch (instruction.RType.rd)
         {
             case 0:
             {
@@ -2999,7 +2993,7 @@ namespace cerberus
             }
             case 31:
             {
-                val = fcr31_.full;
+                val = fcr31.full;
                 break;
             }
             default:
@@ -3012,9 +3006,9 @@ namespace cerberus
     {
         if (!CP0Status.CP1)
         {
-            return throw_exception(prev_pc_, ExceptionType::CoprocessorUnusable, 1);
+            return throw_exception(prevPc, ExceptionType::CoprocessorUnusable, 1);
         }
-        int32_t reg = get_fpr_reg<uint32_t>(instruction_.FType.fs);
+        int32_t reg = get_fpr_reg<uint32_t>(instruction.FType.fs);
         rtreg.D = reg;
     }
 
@@ -3022,32 +3016,32 @@ namespace cerberus
     {
         if (!CP0Status.CP1)
         {
-            return throw_exception(prev_pc_, ExceptionType::CoprocessorUnusable, 1);
+            return throw_exception(prevPc, ExceptionType::CoprocessorUnusable, 1);
         }
-        rtreg.UD = get_fpr_reg<uint64_t>(instruction_.FType.fs);
+        rtreg.UD = get_fpr_reg<uint64_t>(instruction.FType.fs);
     }
 
     void CPU::f_MTC1()
     {
         if (!CP0Status.CP1)
         {
-            return throw_exception(prev_pc_, ExceptionType::CoprocessorUnusable, 1);
+            return throw_exception(prevPc, ExceptionType::CoprocessorUnusable, 1);
         }
-        set_fpr_reg<uint32_t>(instruction_.RType.rd, rtreg.W._0);
+        set_fpr_reg<uint32_t>(instruction.RType.rd, rtreg.W._0);
     }
 
     void CPU::f_DMTC1()
     {
         if (!CP0Status.CP1)
         {
-            return throw_exception(prev_pc_, ExceptionType::CoprocessorUnusable, 1);
+            return throw_exception(prevPc, ExceptionType::CoprocessorUnusable, 1);
         }
-        set_fpr_reg(instruction_.RType.rd, rtreg.UD);
+        set_fpr_reg(instruction.RType.rd, rtreg.UD);
     }
 
     void CPU::f_CTC1()
     {
-        switch (instruction_.RType.rd)
+        switch (instruction.RType.rd)
         {
             case 0:
             {
@@ -3056,7 +3050,7 @@ namespace cerberus
             }
             case 31:
             {
-                fcr31_.full = rtreg.UW._0 & 0x183ffff;
+                fcr31.full = rtreg.UW._0 & 0x183ffff;
                 check_fpu_exception();
                 break;
             }
@@ -3076,21 +3070,21 @@ namespace cerberus
     bool CPU::check_fpu_exception()
     {
         bool fire = false;
-        if (fcr31_.unimplemented)
+        if (fcr31.unimplemented)
         {
             fire = true;
         }
-        else if ((fcr31_.cause_inexact && fcr31_.enable_inexact) ||
-                 (fcr31_.cause_underflow && fcr31_.enable_underflow) ||
-                 (fcr31_.cause_overflow && fcr31_.enable_overflow) ||
-                 (fcr31_.cause_divbyzero && fcr31_.enable_divbyzero) ||
-                 (fcr31_.cause_invalidop && fcr31_.enable_invalidop))
+        else if ((fcr31.cause_inexact && fcr31.enable_inexact) ||
+                 (fcr31.cause_underflow && fcr31.enable_underflow) ||
+                 (fcr31.cause_overflow && fcr31.enable_overflow) ||
+                 (fcr31.cause_divbyzero && fcr31.enable_divbyzero) ||
+                 (fcr31.cause_invalidop && fcr31.enable_invalidop))
         {
             fire = true;
         }
         if (fire)
         {
-            throw_exception(prev_pc_, ExceptionType::FloatingPoint, 0);
+            throw_exception(prevPc, ExceptionType::FloatingPoint, 0);
         }
         return fire;
     }
@@ -3107,22 +3101,22 @@ namespace cerberus
             }
             case FP_SUBNORMAL:
             {
-                if (!fcr31_.flush_subnormals || fcr31_.enable_underflow || fcr31_.enable_inexact)
+                if (!fcr31.flush_subnormals || fcr31.enable_underflow || fcr31.enable_inexact)
                 {
-                    fcr31_.unimplemented = 1;
+                    fcr31.unimplemented = 1;
                     return;
                 }
-                fcr31_.cause_underflow = 1;
-                if (!fcr31_.enable_underflow)
+                fcr31.cause_underflow = 1;
+                if (!fcr31.enable_underflow)
                 {
-                    fcr31_.flag_underflow = 1;
+                    fcr31.flag_underflow = 1;
                 }
-                fcr31_.cause_inexact = 1;
-                if (!fcr31_.enable_inexact)
+                fcr31.cause_inexact = 1;
+                if (!fcr31.enable_inexact)
                 {
-                    fcr31_.flag_inexact = 1;
+                    fcr31.flag_inexact = 1;
                 }
-                switch (fcr31_.rounding_mode)
+                switch (fcr31.rounding_mode)
                 {
                     case 0:
                     case 1:
@@ -3195,21 +3189,21 @@ namespace cerberus
             {
                 if (check_nan<T>(arg))
                 {
-                    fcr31_.cause_invalidop = 1;
-                    if (!fcr31_.enable_invalidop)
+                    fcr31.cause_invalidop = 1;
+                    if (!fcr31.enable_invalidop)
                     {
-                        fcr31_.flag_invalidop = 1;
+                        fcr31.flag_invalidop = 1;
                     }
                 }
                 else
                 {
-                    fcr31_.unimplemented = 1;
+                    fcr31.unimplemented = 1;
                 }
                 break;
             }
             case FP_SUBNORMAL:
             {
-                fcr31_.unimplemented = 1;
+                fcr31.unimplemented = 1;
                 break;
             }
             default:
@@ -3223,15 +3217,15 @@ namespace cerberus
     void CPU::fpu_operate_impl(OperatorFunction op, CastFunction cast)
     {
         bool _64bit = CP0Status.FR;
-        Type ft = get_fpu_reg<Type>(instruction_.FType.ft);
-        auto fs_index = instruction_.FType.fs;
+        Type ft = get_fpu_reg<Type>(instruction.FType.ft);
+        auto fs_index = instruction.FType.fs;
         if (!_64bit)
         {
             fs_index &= ~1;
         }
         Type fs = get_fpu_reg<Type>(fs_index);
         check_fpu_arg(fs);
-        set_fpu_reg<Type>(instruction_.FType.fs, fs);
+        set_fpu_reg<Type>(instruction.FType.fs, fs);
         if (check_fpu_exception())
         {
             return;
@@ -3240,14 +3234,14 @@ namespace cerberus
         if constexpr (!std::is_invocable<decltype(op), Type>())
         {
             check_fpu_arg(ft);
-            set_fpu_reg<Type>(instruction_.FType.ft, ft);
+            set_fpu_reg<Type>(instruction.FType.ft, ft);
             if (check_fpu_exception())
             {
                 return;
             }
         }
         int round_mode = std::fegetround();
-        switch (fcr31_.rounding_mode)
+        switch (fcr31.rounding_mode)
         {
             case 0:
             {
@@ -3284,47 +3278,47 @@ namespace cerberus
         int exception = fetestexcept(FE_ALL_EXCEPT);
         if (exception & FE_UNDERFLOW)
         {
-            if (!fcr31_.flush_subnormals || fcr31_.enable_underflow || fcr31_.enable_inexact)
+            if (!fcr31.flush_subnormals || fcr31.enable_underflow || fcr31.enable_inexact)
             {
-                fcr31_.unimplemented = 1;
+                fcr31.unimplemented = 1;
                 return;
             }
-            fcr31_.cause_underflow = 1;
-            if (!fcr31_.enable_underflow)
+            fcr31.cause_underflow = 1;
+            if (!fcr31.enable_underflow)
             {
-                fcr31_.flag_underflow = 1;
+                fcr31.flag_underflow = 1;
             }
         }
         if (exception & FE_DIVBYZERO)
         {
-            fcr31_.cause_divbyzero = 1;
-            if (!fcr31_.enable_divbyzero)
+            fcr31.cause_divbyzero = 1;
+            if (!fcr31.enable_divbyzero)
             {
-                fcr31_.flag_divbyzero = 1;
+                fcr31.flag_divbyzero = 1;
             }
         }
         if (exception & FE_OVERFLOW)
         {
-            fcr31_.cause_overflow = 1;
-            if (!fcr31_.enable_overflow)
+            fcr31.cause_overflow = 1;
+            if (!fcr31.enable_overflow)
             {
-                fcr31_.flag_overflow = 1;
+                fcr31.flag_overflow = 1;
             }
         }
         if (exception & FE_INEXACT)
         {
-            fcr31_.cause_inexact = 1;
-            if (!fcr31_.enable_inexact)
+            fcr31.cause_inexact = 1;
+            if (!fcr31.enable_inexact)
             {
-                fcr31_.flag_inexact = 1;
+                fcr31.flag_inexact = 1;
             }
         }
         if (exception & FE_INVALID)
         {
-            fcr31_.cause_invalidop = 1;
-            if (!fcr31_.enable_invalidop)
+            fcr31.cause_invalidop = 1;
+            if (!fcr31.enable_invalidop)
             {
-                fcr31_.flag_invalidop = 1;
+                fcr31.flag_invalidop = 1;
             }
         }
         std::fesetround(round_mode);
@@ -3339,11 +3333,11 @@ namespace cerberus
     template <class OperatorFunction, class CastFunction>
     void CPU::fpu_operate(OperatorFunction op, CastFunction cast)
     {
-        fcr31_.cause_inexact = false;
-        fcr31_.cause_underflow = false;
-        fcr31_.cause_overflow = false;
-        fcr31_.cause_divbyzero = false;
-        fcr31_.cause_invalidop = false;
+        fcr31.cause_inexact = false;
+        fcr31.cause_underflow = false;
+        fcr31.cause_overflow = false;
+        fcr31.cause_divbyzero = false;
+        fcr31.cause_invalidop = false;
         switch (fmtval)
         {
             case FMT_S:
@@ -3395,23 +3389,23 @@ namespace cerberus
         {
             case FMT_S:
             {
-                int reg = instruction_.FType.fs;
+                int reg = instruction.FType.fs;
                 if (!CP0Status.FR)
                 {
                     reg &= ~1;
                 }
-                uint64_t value = (fpr_regs_[reg]).UD;
+                uint64_t value = (fprs[reg]).UD;
                 fdreg.UD = value;
                 break;
             }
             case FMT_D:
             {
-                int reg = instruction_.FType.fs;
+                int reg = instruction.FType.fs;
                 if (!CP0Status.FR)
                 {
                     reg &= ~1;
                 }
-                uint64_t value = (fpr_regs_[reg]).UD;
+                uint64_t value = (fprs[reg]).UD;
                 fdreg.UD = value;
                 break;
             }
@@ -3586,12 +3580,12 @@ namespace cerberus
         {
             case FMT_S:
             {
-                fcr31_.compare = std::isnan(fsreg.FLOAT._0) || std::isnan(ftreg.FLOAT._0);
+                fcr31.compare = std::isnan(fsreg.FLOAT._0) || std::isnan(ftreg.FLOAT._0);
                 break;
             }
             case FMT_D:
             {
-                fcr31_.compare = std::isnan(fsreg.DOUBLE) || std::isnan(ftreg.DOUBLE);
+                fcr31.compare = std::isnan(fsreg.DOUBLE) || std::isnan(ftreg.DOUBLE);
                 break;
             }
             default:
@@ -3605,12 +3599,12 @@ namespace cerberus
         {
             case FMT_S:
             {
-                fcr31_.compare = fsreg.FLOAT._0 == ftreg.FLOAT._0;
+                fcr31.compare = fsreg.FLOAT._0 == ftreg.FLOAT._0;
                 break;
             }
             case FMT_D:
             {
-                fcr31_.compare = fsreg.DOUBLE == ftreg.DOUBLE;
+                fcr31.compare = fsreg.DOUBLE == ftreg.DOUBLE;
                 break;
             }
             default:
@@ -3629,12 +3623,12 @@ namespace cerberus
         {
             case FMT_S:
             {
-                fcr31_.compare = fsreg.FLOAT._0 < ftreg.FLOAT._0;
+                fcr31.compare = fsreg.FLOAT._0 < ftreg.FLOAT._0;
                 break;
             }
             case FMT_D:
             {
-                fcr31_.compare = fsreg.DOUBLE < ftreg.DOUBLE;
+                fcr31.compare = fsreg.DOUBLE < ftreg.DOUBLE;
                 break;
             }
             default:
@@ -3648,13 +3642,13 @@ namespace cerberus
         {
             case FMT_S:
             {
-                fcr31_.compare = fsreg.FLOAT._0 < ftreg.FLOAT._0 ||
+                fcr31.compare = fsreg.FLOAT._0 < ftreg.FLOAT._0 ||
                                  (std::isnan(fsreg.FLOAT._0) || std::isnan(ftreg.FLOAT._0));
                 break;
             }
             case FMT_D:
             {
-                fcr31_.compare = fsreg.DOUBLE < ftreg.DOUBLE ||
+                fcr31.compare = fsreg.DOUBLE < ftreg.DOUBLE ||
                                  (std::isnan(fsreg.DOUBLE) || std::isnan(ftreg.DOUBLE));
                 break;
             }
@@ -3699,12 +3693,12 @@ namespace cerberus
         {
             case FMT_S:
             {
-                fcr31_.compare = fsreg.FLOAT._0 < ftreg.FLOAT._0;
+                fcr31.compare = fsreg.FLOAT._0 < ftreg.FLOAT._0;
                 break;
             }
             case FMT_D:
             {
-                fcr31_.compare = fsreg.DOUBLE < ftreg.DOUBLE;
+                fcr31.compare = fsreg.DOUBLE < ftreg.DOUBLE;
                 break;
             }
             default:
@@ -3723,12 +3717,12 @@ namespace cerberus
         {
             case FMT_S:
             {
-                fcr31_.compare = fsreg.FLOAT._0 <= ftreg.FLOAT._0;
+                fcr31.compare = fsreg.FLOAT._0 <= ftreg.FLOAT._0;
                 break;
             }
             case FMT_D:
             {
-                fcr31_.compare = fsreg.DOUBLE <= ftreg.DOUBLE;
+                fcr31.compare = fsreg.DOUBLE <= ftreg.DOUBLE;
                 break;
             }
             default:

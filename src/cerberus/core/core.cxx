@@ -35,24 +35,24 @@ namespace cerberus
         static int cycles = 0;
         for (int f = 0; f < 1; f++)
         { // fields
-            for (int hl = 0; hl < vr4300.rcp_.vi_.num_halflines_; hl++)
+            for (int hl = 0; hl < vr4300.rcp.vi_.num_halflines_; hl++)
             { // halflines
-                vr4300.rcp_.vi_.vi_v_current_ = (hl << 1) + f;
+                vr4300.rcp.vi_.vi_v_current_ = (hl << 1) + f;
                 vr4300.check_vi_interrupt();
-                while (cycles <= vr4300.rcp_.vi_.cycles_per_halfline_)
+                while (cycles <= vr4300.rcp.vi_.cycles_per_halfline_)
                 {
                     static int cpu_cycles = 0;
                     cpu_cycles++;
                     vr4300.Tick();
                     rcp.ai_.Step();
-                    if (!vr4300.rcp_.rsp_.IsHalted())
+                    if (!vr4300.rcp.rsp.IsHalted())
                     {
                         while (cpu_cycles > 2)
                         {
-                            vr4300.rcp_.rsp_.Tick();
-                            if (!vr4300.rcp_.rsp_.IsHalted())
+                            vr4300.rcp.rsp.Tick();
+                            if (!vr4300.rcp.rsp.IsHalted())
                             {
-                                vr4300.rcp_.rsp_.Tick();
+                                vr4300.rcp.rsp.Tick();
                             }
                             cpu_cycles -= 3;
                         }
@@ -63,7 +63,7 @@ namespace cerberus
                     }
                     cycles++;
                 }
-                cycles -= vr4300.rcp_.vi_.cycles_per_halfline_;
+                cycles -= vr4300.rcp.vi_.cycles_per_halfline_;
             }
             vr4300.check_vi_interrupt();
         }

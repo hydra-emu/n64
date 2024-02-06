@@ -22,8 +22,8 @@ namespace cerberus
     private:
         Vi vi_;
         Ai ai_;
-        RSP rsp_;
-        RDP rdp_;
+        RSP rsp;
+        RDP rdp;
 
         friend class cerberus::N64;
         friend class cerberus::CPU;

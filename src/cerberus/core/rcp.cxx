@@ -5,8 +5,8 @@ namespace cerberus
     void RCP::Reset()
     {
         // These default values are in little endian
-        rsp_.Reset();
-        rdp_.Reset();
+        rsp.Reset();
+        rdp.Reset();
         vi_.Reset();
     }
 

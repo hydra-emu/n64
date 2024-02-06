@@ -188,11 +188,11 @@ namespace cerberus
             // memcrc ^= 0xFFFF'FFFF;
             gprcrc ^= 0xFFFF'FFFF;
             veccrc ^= 0xFFFF'FFFF;
-            printf("RSP: %08x %08x %08x", pc_, instruction_.full, gprcrc);
+            printf("RSP: %08x %08x %08x", Pc, instruction_.full, gprcrc);
         }
         else
         {
-            printf("%08x %08x", pc_, instruction_.full);
+            printf("%08x %08x", Pc, instruction_.full);
             for (int i = 1; i < 32; i++)
             {
                 printf(" %08x", gpr_regs_[i].UW);
@@ -228,8 +228,8 @@ namespace cerberus
         rdram_addr_ = 0;
         pending_rdram_addr_ = 0;
         dma_len_ = 0;
-        pc_ = 0;
-        next_pc_ = 4;
+        Pc = 0;
+        nextPc = 4;
         semaphore_ = false;
     }
 
@@ -241,8 +241,8 @@ namespace cerberus
 
         log_cpu_state<RSP_LOGGING>(true, 10000000);
 
-        pc_ = next_pc_ & 0xFFF;
-        next_pc_ = (pc_ + 4) & 0xFFF;
+        Pc = nextPc & 0xFFF;
+        nextPc = (Pc + 4) & 0xFFF;
         execute_instruction();
     }
 
@@ -253,7 +253,7 @@ namespace cerberus
 
     uint32_t RSP::fetch_instruction()
     {
-        uint32_t instruction = *reinterpret_cast<uint32_t*>(&mem_[0x1000 + (pc_ & 0xFFF)]);
+        uint32_t instruction = *reinterpret_cast<uint32_t*>(&mem_[0x1000 + (Pc & 0xFFF)]);
         return hydra::bswap32(instruction);
     }
 
@@ -300,7 +300,7 @@ namespace cerberus
     {
         // TODO: Make it so that addresses are always correct (i.e. don't & on EVERY
         // tick)
-        next_pc_ = (address & ~0b11) & 0xFFF;
+        nextPc = (address & ~0b11) & 0xFFF;
     }
 
     void RSP::conditional_branch(bool condition, uint16_t address)
@@ -313,7 +313,7 @@ namespace cerberus
 
     void RSP::link_register(uint8_t reg)
     {
-        gpr_regs_[reg].UW = pc_ + 4;
+        gpr_regs_[reg].UW = Pc + 4;
     }
 
     inline void dma(uint8_t*& dest, uint8_t*& source, uint32_t& dma_len, bool dma_imem,
@@ -2112,21 +2112,21 @@ namespace cerberus
     {
         int16_t offset = immval << 2;
         int32_t seoffset = offset;
-        conditional_branch(rsreg.W >= 0, pc_ + seoffset);
+        conditional_branch(rsreg.W >= 0, Pc + seoffset);
     }
 
     void RSP::r_BLTZ()
     {
         int16_t offset = immval << 2;
         int32_t seoffset = offset;
-        conditional_branch(rsreg.W < 0, pc_ + seoffset);
+        conditional_branch(rsreg.W < 0, Pc + seoffset);
     }
 
     void RSP::r_BGEZAL()
     {
         int16_t offset = immval << 2;
         int32_t seoffset = offset;
-        conditional_branch(rsreg.W >= 0, pc_ + seoffset);
+        conditional_branch(rsreg.W >= 0, Pc + seoffset);
         link_register(31);
     }
 
@@ -2134,7 +2134,7 @@ namespace cerberus
     {
         int16_t offset = immval << 2;
         int32_t seoffset = offset;
-        conditional_branch(rsreg.W < 0, pc_ + seoffset);
+        conditional_branch(rsreg.W < 0, Pc + seoffset);
         link_register(31);
     }
 
@@ -2154,28 +2154,28 @@ namespace cerberus
     {
         int16_t offset = immval << 2;
         int32_t seoffset = offset;
-        conditional_branch(rsreg.UW == rtreg.UW, pc_ + seoffset);
+        conditional_branch(rsreg.UW == rtreg.UW, Pc + seoffset);
     }
 
     void RSP::BNE()
     {
         int16_t offset = immval << 2;
         int32_t seoffset = offset;
-        conditional_branch(rsreg.UW != rtreg.UW, pc_ + seoffset);
+        conditional_branch(rsreg.UW != rtreg.UW, Pc + seoffset);
     }
 
     void RSP::BLEZ()
     {
         int16_t offset = immval << 2;
         int32_t seoffset = offset;
-        conditional_branch(rsreg.W <= 0, pc_ + seoffset);
+        conditional_branch(rsreg.W <= 0, Pc + seoffset);
     }
 
     void RSP::BGTZ()
     {
         int16_t offset = immval << 2;
         int32_t seoffset = offset;
-        conditional_branch(rsreg.W > 0, pc_ + seoffset);
+        conditional_branch(rsreg.W > 0, Pc + seoffset);
     }
 
     void RSP::ADDI()

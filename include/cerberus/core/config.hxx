@@ -7,6 +7,6 @@ namespace cerberus
 {
     struct Config
     {
-        std::shared_ptr<RDPDevice> videoDevice;
+        std::shared_ptr<RDPDevice> videoDevice = std::make_shared<NullRDPDevice>();
     };
 } // namespace cerberus
