@@ -3,15 +3,15 @@
 #include <bitset>
 #include <cassert>
 #include <compatibility.hxx>
-#include <n64_log.hxx>
-#include <n64_addresses.hxx>
-#include <n64_rdp.hxx>
-#include <n64_rdp_commands.hxx>
 #include <cstdlib>
 #include <execution>
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <n64_addresses.hxx>
+#include <n64_log.hxx>
+#include <n64_rdp.hxx>
+#include <n64_rdp_commands.hxx>
 #include <sstream>
 
 inline static uint32_t irand(uint32_t* state)
@@ -329,7 +329,8 @@ namespace cerberus
             }
             case RDPCommandType::LoadTile:
             {
-                // Loads a tile (part of the bigger texture set by SetTextureImage) into TMEM
+                // Loads a tile (part of the bigger texture set by SetTextureImage) into
+                // TMEM
                 LoadTileCommand command;
                 command.full = data[0];
 
@@ -361,8 +362,8 @@ namespace cerberus
                         {
                             uint64_t src = *reinterpret_cast<uint64_t*>(
                                 &rdram_ptr_[texture_dram_address_latch_ + i]);
-                            uint8_t* dst =
-                                reinterpret_cast<uint8_t*>(&tmem_[tile.tmem_address + i + skip_accumulator]);
+                            uint8_t* dst = reinterpret_cast<uint8_t*>(
+                                &tmem_[tile.tmem_address + i + skip_accumulator]);
                             memcpy(dst, &src, 8);
                             dxt_accumulator += dxt;
                             if (dxt_accumulator & 0b1'00000000000)
@@ -410,8 +411,8 @@ namespace cerberus
             }
             case RDPCommandType::SetTile:
             {
-                // The gsDPSetTile is used to indicate where in Tmem you want to place the image,
-                // how wide each line is, and the format and size of the texture.
+                // The gsDPSetTile is used to indicate where in Tmem you want to place the
+                // image, how wide each line is, and the format and size of the texture.
                 SetTileCommand command;
                 command.full = data[0];
                 TileDescriptor& tile = tiles_[command.Tile];
@@ -795,7 +796,8 @@ namespace cerberus
             }
             case CycleType::Cycle1:
             {
-                // TODO: there's may be a way to check which cycle we should get the data from
+                // TODO: there's may be a way to check which cycle we should get the data
+                // from
                 color_combiner(1);
                 if (framebuffer_pixel_size_ == 16)
                 {
@@ -1615,7 +1617,8 @@ namespace cerberus
             uint32_t DsDx = (uint16_t)((data[1] >> 16) & 0xFFFF);
             uint32_t DtDy = (uint16_t)(data[1] & 0xFFFF);
 
-            // s.5.10, we need to shift left by 6 to move the integer part to the top 16 bits
+            // s.5.10, we need to shift left by 6 to move the integer part to the top 16
+            // bits
             DsDx <<= 6;
             DtDy <<= 6;
 
@@ -1839,10 +1842,10 @@ namespace cerberus
                 }
 
                 // Check if the current subpixel is inside the scissor
-                // XH/XL are 16.16 fixed point, so shifting by 14 would convert the lower 12
-                // bits to 10.2 fixed point Since scissor_**_shift is shifted to the left by 1,
-                // we need to shift the XH/XL values by 13 instead of 14, which would convert
-                // them to 10.2 fixed point
+                // XH/XL are 16.16 fixed point, so shifting by 14 would convert the lower
+                // 12 bits to 10.2 fixed point Since scissor_**_shift is shifted to the
+                // left by 1, we need to shift the XH/XL values by 13 instead of 14, which
+                // would convert them to 10.2 fixed point
                 bool round_bit = ((x_right >> 1) & 0x1fff) > 0;
                 int32_t x_right_clipped = ((x_right >> 13) & 0x1FFE) | round_bit;
                 bool cur_under = ((x_right & 0x8000000) ||
@@ -1986,7 +1989,8 @@ namespace cerberus
 
     inline int32_t z_correct(int32_t z)
     {
-        // TODO: not quite right, there's some coverage shenanigans going on if cvg != 8
+        // TODO: not quite right, there's some coverage shenanigans going on if cvg !=
+        // 8
         z >>= 3;
 
         switch ((z >> 17) & 3)

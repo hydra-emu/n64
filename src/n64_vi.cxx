@@ -1,6 +1,6 @@
 #include <compatibility.hxx>
-#include <n64_log.hxx>
 #include <n64_addresses.hxx>
+#include <n64_log.hxx>
 #include <n64_types.hxx>
 #include <n64_vi.hxx>
 

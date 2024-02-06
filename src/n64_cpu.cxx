@@ -1,15 +1,15 @@
-#include <compatibility.hxx>
-#include <n64_addresses.hxx>
 #include <bitset>
 #include <cassert>
 #include <cmath>
-#include <n64_cpu.hxx>
+#include <compatibility.hxx>
 #include <cstring>
 #include <fstream>
 #include <functional>
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <n64_addresses.hxx>
+#include <n64_cpu.hxx>
 #include <random>
 #include <sstream>
 
@@ -221,8 +221,7 @@ namespace cerberus
                     set_interrupt(InterruptType::PI, true);
                     return;
                 }
-                std::memcpy(&rdram_[dram_addr], redirect_paddress(cart_addr),
-                            length);
+                std::memcpy(&rdram_[dram_addr], redirect_paddress(cart_addr), length);
                 dma_busy_ = true;
                 // uint8_t domain = 0;
                 // if ((cart_addr >= 0x0800'0000 && cart_addr < 0x1000'0000) ||
@@ -319,8 +318,7 @@ namespace cerberus
             }
             case SI_PIF_AD_WR64B:
             {
-                std::memcpy(pif_ram_.data(),
-                            &rdram_[si_dram_addr_ & 0xff'ffff], 64);
+                std::memcpy(pif_ram_.data(), &rdram_[si_dram_addr_ & 0xff'ffff], 64);
                 pif_command();
                 set_interrupt(InterruptType::SI, true);
                 Logger::Debug("Raising SI interrupt");
@@ -329,8 +327,7 @@ namespace cerberus
             case SI_PIF_AD_RD64B:
             {
                 pif_command();
-                std::memcpy(&rdram_[si_dram_addr_ & 0xff'ffff],
-                            pif_ram_.data(), 64);
+                std::memcpy(&rdram_[si_dram_addr_ & 0xff'ffff], pif_ram_.data(), 64);
                 set_interrupt(InterruptType::SI, true);
                 Logger::Debug("Raising SI interrupt");
                 return;
@@ -458,8 +455,7 @@ namespace cerberus
                 redir_case(PI_WR_LEN, pi_wr_len_);
             case PI_STATUS:
             {
-                return dma_busy_ | (io_busy_ << 1) | (dma_error_ << 2) |
-                       (mi_interrupt_.PI << 3);
+                return dma_busy_ | (io_busy_ << 1) | (dma_error_ << 2) | (mi_interrupt_.PI << 3);
             }
                 redir_case(PI_BSD_DOM1_LAT, pi_bsd_dom1_lat_);
                 redir_case(PI_BSD_DOM1_PWD, pi_bsd_dom1_pwd_);
@@ -752,10 +748,10 @@ namespace cerberus
                 // result[1] = 0 | 0 | !!read_input_callback_(player, HC_INPUT_L1) << 5 |
                 //             !!read_input_callback_(player, HC_INPUT_R1) << 4 |
                 //             0;
-                            // read_input_callback_(player, HC_INPUT_CUp) << 3 |
-                            // read_input_callback_(player, HC_INPUT_CDown) << 2 |
-                            // read_input_callback_(player, HC_INPUT_CLeft) << 1 |
-                            // read_input_callback_(player, HC_INPUT_CRight);
+                // read_input_callback_(player, HC_INPUT_CUp) << 3 |
+                // read_input_callback_(player, HC_INPUT_CDown) << 2 |
+                // read_input_callback_(player, HC_INPUT_CLeft) << 1 |
+                // read_input_callback_(player, HC_INPUT_CRight);
                 // int8_t x = -read_input_callback_(player, HC_INPUT_RIGHT_ANALOG_LEFT) +
                 //            read_input_callback_(player, HC_INPUT_RIGHT_ANALOG_RIGHT);
                 // int8_t y = -read_input_callback_(player, HC_INPUT_RIGHT_ANALOG_DOWN) +
@@ -779,8 +775,7 @@ namespace cerberus
     }
 
     CPU::CPU(Scheduler& scheduler, RCP& rcp)
-        : gpr_regs_{}, fpr_regs_{}, scheduler_(scheduler),
-          rcp_(rcp)
+        : gpr_regs_{}, fpr_regs_{}, scheduler_(scheduler), rcp_(rcp)
     {
         isviewer_buffer_.resize(ISVIEWER_AREA_END - ISVIEWER_AREA_START);
         cart_rom_.resize(0xFC00000);
@@ -871,9 +866,9 @@ namespace cerberus
             newentry.initialized = false;
             std::swap(entry, newentry);
         }
-        store_word(
-            0x8000'0318,
-            0x800000); // TODO: probably done by pif somewhere if RI_SELECT is emulated or something
+        store_word(0x8000'0318,
+                   0x800000); // TODO: probably done by pif somewhere if RI_SELECT is
+                              // emulated or something
     }
 
     // Shamelessly stolen from dillon
@@ -1243,8 +1238,7 @@ namespace cerberus
         printf("rdram:\n");
         for (int i = 0; i < 0x80'000; i += 4)
         {
-            printf("%08x %08x %08x %08x\n", rdram_[i], rdram_[i + 1],
-                   rdram_[i + 2], rdram_[i + 3]);
+            printf("%08x %08x %08x %08x\n", rdram_[i], rdram_[i + 1], rdram_[i + 2], rdram_[i + 3]);
         }
     }
 
@@ -1438,17 +1432,17 @@ namespace cerberus
         uint64_t address = seoffset + rsreg.UD;
         if ((address & 0b111) != 0)
         {
-            // If either of the loworder two bits of the address are not zero, an address error
-            // exception occurs.
+            // If either of the loworder two bits of the address are not zero, an
+            // address error exception occurs.
             set_cp0_regs_exception(address);
             throw_exception(prev_pc_, ExceptionType::AddressErrorStore);
             return;
         }
         if (!is_kernel_mode())
         {
-            // This operation is defined for the VR4300 operating in 64-bit mode and in 32-bit
-            // Kernel mode. Execution of this instruction in 32-bit User or Supervisor mode
-            // causes a reserved instruction exception.
+            // This operation is defined for the VR4300 operating in 64-bit mode and in
+            // 32-bit Kernel mode. Execution of this instruction in 32-bit User or
+            // Supervisor mode causes a reserved instruction exception.
             printf("Forgot to check 32 bit mode for: SD");
             throw_exception(prev_pc_, ExceptionType::ReservedInstruction);
         }
@@ -1462,16 +1456,16 @@ namespace cerberus
         uint64_t address = seoffset + rsreg.UD;
         if ((address & 0b11) != 0)
         {
-            // If either of the loworder two bits of the address are not zero, an address error
-            // exception occurs.
+            // If either of the loworder two bits of the address are not zero, an
+            // address error exception occurs.
             set_cp0_regs_exception(address);
             throw_exception(prev_pc_, ExceptionType::AddressErrorStore);
             return;
         }
         if ((address >> 31) && static_cast<int64_t>(address) > 0)
         {
-            // If bit 31 is set and address is positive, that means it's not sign extended, an
-            // address error exception occurs.
+            // If bit 31 is set and address is positive, that means it's not sign
+            // extended, an address error exception occurs.
             set_cp0_regs_exception(address);
             throw_exception(prev_pc_, ExceptionType::AddressErrorStore);
             return;
@@ -1486,8 +1480,8 @@ namespace cerberus
         uint64_t address = seoffset + rsreg.UD;
         if ((address & 0b1) != 0)
         {
-            // If either of the loworder two bits of the address are not zero, an address error
-            // exception occurs.
+            // If either of the loworder two bits of the address are not zero, an
+            // address error exception occurs.
             set_cp0_regs_exception(address);
             throw_exception(prev_pc_, ExceptionType::AddressErrorStore);
             return;
@@ -1503,8 +1497,8 @@ namespace cerberus
 
         if ((address & 0b11) != 0)
         {
-            // If either of the loworder two bits of the address are not zero, an address error
-            // exception occurs.
+            // If either of the loworder two bits of the address are not zero, an
+            // address error exception occurs.
             set_cp0_regs_exception(address);
             throw_exception(prev_pc_, ExceptionType::AddressErrorStore);
             return;
@@ -1549,8 +1543,8 @@ namespace cerberus
         uint64_t address = seoffset + rsreg.UD;
         if ((address & 0b1) != 0)
         {
-            // If the least-significant bit of the address is not zero, an address error exception
-            // occurs.
+            // If the least-significant bit of the address is not zero, an address error
+            // exception occurs.
             set_cp0_regs_exception(address);
             throw_exception(prev_pc_, ExceptionType::AddressErrorLoad);
             return;
@@ -1572,16 +1566,16 @@ namespace cerberus
         uint64_t address = seoffset + rsreg.UD;
         if ((address & 0b11) != 0)
         {
-            // If either of the loworder two bits of the address are not zero, an address error
-            // exception occurs.
+            // If either of the loworder two bits of the address are not zero, an
+            // address error exception occurs.
             set_cp0_regs_exception(address);
             throw_exception(prev_pc_, ExceptionType::AddressErrorLoad);
             return;
         }
         if ((address >> 31) && static_cast<int64_t>(address) > 0)
         {
-            // If bit 31 is set and address is positive, that means it's not sign extended, an
-            // address error exception occurs.
+            // If bit 31 is set and address is positive, that means it's not sign
+            // extended, an address error exception occurs.
             set_cp0_regs_exception(address);
             throw_exception(prev_pc_, ExceptionType::AddressErrorLoad);
             return;
@@ -1596,17 +1590,17 @@ namespace cerberus
         uint64_t address = seoffset + rsreg.UD;
         if ((address & 0b111) != 0)
         {
-            // If either of the loworder two bits of the address are not zero, an address error
-            // exception occurs.
+            // If either of the loworder two bits of the address are not zero, an
+            // address error exception occurs.
             set_cp0_regs_exception(address);
             throw_exception(prev_pc_, ExceptionType::AddressErrorLoad);
             return;
         }
         if (!is_kernel_mode()) // TODO: check 64 bit mode
         {
-            // This operation is defined for the VR4300 operating in 64-bit mode and in 32-bit
-            // Kernel mode. Execution of this instruction in 32-bit User or Supervisor mode
-            // causes a reserved instruction exception.
+            // This operation is defined for the VR4300 operating in 64-bit mode and in
+            // 32-bit Kernel mode. Execution of this instruction in 32-bit User or
+            // Supervisor mode causes a reserved instruction exception.
             printf("Forgot to check 32 bit mode for: LD");
             throw_exception(prev_pc_, ExceptionType::ReservedInstruction);
             return;
@@ -1621,8 +1615,8 @@ namespace cerberus
         uint64_t address = seoffset + rsreg.UD;
         if ((address & 0b11) != 0)
         {
-            // If either of the loworder two bits of the address are not zero, an address error
-            // exception occurs.
+            // If either of the loworder two bits of the address are not zero, an
+            // address error exception occurs.
             set_cp0_regs_exception(address);
             throw_exception(prev_pc_, ExceptionType::AddressErrorLoad);
             return;
@@ -1703,11 +1697,11 @@ namespace cerberus
     void CPU::s_JALR()
     {
         link_register(instruction_.RType.rd);
-        // Register numbers rs and rd should not be equal, because such an instruction does
-        // not have the same effect when re-executed. If they are equal, the contents of rs
-        // are destroyed by storing link address. However, if an attempt is made to execute
-        // this instruction, an exception will not occur, and the result of executing such an
-        // instruction is undefined.
+        // Register numbers rs and rd should not be equal, because such an instruction
+        // does not have the same effect when re-executed. If they are equal, the
+        // contents of rs are destroyed by storing link address. However, if an
+        // attempt is made to execute this instruction, an exception will not occur,
+        // and the result of executing such an instruction is undefined.
         if (rdreg.UD != rsreg.UD)
         {
             // throw_exception(prev_pc_, ExceptionType::AddressErrorLoad);
@@ -1721,9 +1715,9 @@ namespace cerberus
         if ((jump_addr & 0b11) != 0)
         {
             // Since instructions must be word-aligned, a Jump Register instruction must
-            // specify a target register (rs) which contains an address whose low-order two bits
-            // are zero. If these low-order two bits are not zero, an address exception will occur
-            // when the jump target instruction is fetched.
+            // specify a target register (rs) which contains an address whose low-order
+            // two bits are zero. If these low-order two bits are not zero, an address
+            // exception will occur when the jump target instruction is fetched.
             set_cp0_regs_exception(jump_addr);
             throw_exception(jump_addr, ExceptionType::AddressErrorLoad);
             return;
@@ -2402,9 +2396,9 @@ namespace cerberus
         bool overflow = hydra::add_overflow(rsreg.W._0, seimm, result);
         if (overflow)
         {
-            // An integer overflow exception occurs if carries out of bits 30 and 31 differ (2’s
-            // complement overflow). The contents of destination register rt is not modified
-            // when an integer overflow exception occurs.
+            // An integer overflow exception occurs if carries out of bits 30 and 31
+            // differ (2’s complement overflow). The contents of destination register rt
+            // is not modified when an integer overflow exception occurs.
             return throw_exception(prev_pc_, ExceptionType::IntegerOverflow);
         }
         rtreg.D = static_cast<int32_t>(result);
@@ -2422,9 +2416,9 @@ namespace cerberus
         bool overflow = hydra::add_overflow(rsreg.D, seimm, result);
         if (overflow)
         {
-            // An integer overflow exception occurs if carries out of bits 30 and 31 differ (2’s
-            // complement overflow). The contents of destination register rt is not modified
-            // when an integer overflow exception occurs.
+            // An integer overflow exception occurs if carries out of bits 30 and 31
+            // differ (2’s complement overflow). The contents of destination register rt
+            // is not modified when an integer overflow exception occurs.
             return throw_exception(prev_pc_, ExceptionType::IntegerOverflow);
         }
         rtreg.D = result;

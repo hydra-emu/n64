@@ -1,7 +1,7 @@
 #include <chrono>
 #include <core.hxx>
-#include <n64_scheduler.hxx>
 #include <iostream>
+#include <n64_scheduler.hxx>
 
 // TODO: cmake option
 // #define PROFILING
@@ -85,7 +85,7 @@ namespace cerberus
         vr4300.mouse_y_ = y;
     }
 
-    void N64::SetAudioCallback(void(*callback)(const int16_t*, uint32_t, int))
+    void N64::SetAudioCallback(void (*callback)(const int16_t*, uint32_t, int))
     {
         rcp.ai_.SetAudioCallback(callback);
     }

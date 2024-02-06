@@ -1,8 +1,8 @@
 #include <algorithm>
 #include <cstdint>
+#include <fstream>
 #include <n64_addresses.hxx>
 #include <n64_ai.hxx>
-#include <fstream>
 
 namespace cerberus
 {
@@ -139,7 +139,7 @@ namespace cerberus
         }
     }
 
-    void Ai::SetAudioCallback(void(*callback)(const int16_t*, uint32_t, int))
+    void Ai::SetAudioCallback(void (*callback)(const int16_t*, uint32_t, int))
     {
         audio_callback_ = callback;
     }

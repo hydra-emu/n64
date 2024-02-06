@@ -1,24 +1,25 @@
 #pragma once
 
-#include "hydra/core.hxx"
-#include "n64_scheduler.hxx"
 #include <array>
 #include <cfenv>
 #include <cfloat>
 #include <chrono>
 #include <cmath>
 #include <compatibility.hxx>
-#include <n64_log.hxx>
 #include <concepts>
-#include <n64_addresses.hxx>
-#include <n64_rcp.hxx>
-#include <n64_types.hxx>
 #include <cstdint>
+#include <filesystem>
 #include <limits>
 #include <memory>
+#include <n64_addresses.hxx>
+#include <n64_log.hxx>
+#include <n64_rcp.hxx>
+#include <n64_types.hxx>
 #include <queue>
 #include <vector>
-#include <filesystem>
+
+#include "hydra/core.hxx"
+#include "n64_scheduler.hxx"
 
 #define KB(x) (static_cast<size_t>(x << 10))
 #define check_bit(x, y) ((x) & (1u << y))
@@ -193,8 +194,8 @@ namespace cerberus
     static void lut_wrapper(CPU* cpu)
     {
         // Props: calc84maniac
-        // > making it into a template parameter lets the compiler avoid using an actual member
-        // function pointer at runtime
+        // > making it into a template parameter lets the compiler avoid using an
+        // actual member function pointer at runtime
         (cpu->*MemberFunc)();
     }
 
@@ -212,6 +213,7 @@ namespace cerberus
     {
     public:
         CPU(Scheduler& scheduler, RCP& rcp);
+
         inline void Tick()
         {
             ++clock_;
@@ -237,6 +239,7 @@ namespace cerberus
             next_pc_ += 4;
             (instruction_table_[instruction_.IType.op])(this);
         }
+
         void Reset();
 
         bool LoadCartridge(const std::filesystem::path& path);
@@ -287,6 +290,7 @@ namespace cerberus
             }
             return nullptr;
         }
+
         void map_direct_addresses();
 
         std::vector<uint8_t> ipl_;
@@ -351,6 +355,7 @@ namespace cerberus
             }
             return {};
         }
+
         inline PhysicalAddress translate_vaddr_kernel(uint32_t addr)
         {
             if (addr >= 0x80000000 && addr <= 0xBFFFFFFF) [[likely]]
@@ -375,6 +380,7 @@ namespace cerberus
             }
             return {};
         }
+
         inline PhysicalAddress probe_tlb(uint32_t vaddr)
         {
             for (const TLBEntry& entry : tlb_)

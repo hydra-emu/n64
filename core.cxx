@@ -1,10 +1,14 @@
+#include <core.hxx>
 #include <cstdint>
 #include <hydra/core.hxx>
-#include <core.hxx>
 
-class HydraCore : public hydra::IBase, public hydra::ISoftwareRendered, public hydra::IFrontendDriven, public hydra::IInput
+class HydraCore : public hydra::IBase,
+                  public hydra::ISoftwareRendered,
+                  public hydra::IFrontendDriven,
+                  public hydra::IInput
 {
     HYDRA_CLASS
+
 public:
     HydraCore()
     {
@@ -28,18 +32,24 @@ public:
         }
         return false;
     }
+
     void reset() override
     {
         n64.Reset();
     }
+
     hydra::Size getNativeSize() override
     {
-        return { (uint32_t)n64.GetWidth(), (uint32_t)n64.GetHeight() };
+        return {(uint32_t)n64.GetWidth(), (uint32_t)n64.GetHeight()};
     }
+
     void setOutputSize(hydra::Size size) override {}
 
     // ISoftwareRendered
-    void setVideoCallback(void (*callback)(void* data, hydra::Size size)) override { video_callback = callback; };
+    void setVideoCallback(void (*callback)(void* data, hydra::Size size)) override
+    {
+        video_callback = callback;
+    };
 
     // IFrontendDriven
     void runFrame() override
@@ -47,10 +57,13 @@ public:
         n64.RunFrame();
         std::vector<uint8_t> data;
         n64.RenderVideo(data);
-        video_callback(data.data(), { (uint32_t)n64.GetWidth(), (uint32_t)n64.GetHeight() });
+        video_callback(data.data(), {(uint32_t)n64.GetWidth(), (uint32_t)n64.GetHeight()});
     }
 
-    uint16_t getFps() override { return 60; };
+    uint16_t getFps() override
+    {
+        return 60;
+    };
 
     void setPollInputCallback(void (*callback)()) override
     {
@@ -81,31 +94,31 @@ HC_API const char* getInfo(hydra::InfoType type)
 {
     switch (type)
     {
-    case hydra::InfoType::CoreName:
-        return "Cerberus";
-    case hydra::InfoType::SystemName:
-        return "Nintendo 64";
-    case hydra::InfoType::Version:
-        return "1.0";
-    case hydra::InfoType::Author:
-        return "OFFTKP";
-    case hydra::InfoType::Website:
-        return "todo: add me";
-    case hydra::InfoType::Description:
-        return "An n64 emulator";
-    case hydra::InfoType::Extensions:
-        return "z64,N64";
-    case hydra::InfoType::License:
-        return "MIT";
-    case hydra::InfoType::Settings:
-        return R"(
+        case hydra::InfoType::CoreName:
+            return "Cerberus";
+        case hydra::InfoType::SystemName:
+            return "Nintendo 64";
+        case hydra::InfoType::Version:
+            return "1.0";
+        case hydra::InfoType::Author:
+            return "OFFTKP";
+        case hydra::InfoType::Website:
+            return "todo: add me";
+        case hydra::InfoType::Description:
+            return "An n64 emulator";
+        case hydra::InfoType::Extensions:
+            return "z64,N64";
+        case hydra::InfoType::License:
+            return "MIT";
+        case hydra::InfoType::Settings:
+            return R"(
             [bios]
             type = "filepicker"
             name = "IPL3"
             description = "The IPL is required to run games"
             required = true
         )";
-    default:
-        return nullptr;
+        default:
+            return nullptr;
     }
 }

@@ -3,13 +3,13 @@
 #include <fmt/color.h>
 #include <fmt/core.h>
 #include <fmt/format.h>
+
 #include <functional>
 #include <unordered_map>
 #include <vector>
 
 using log_callback_t = std::function<void(const char*)>;
-using LoggingCallbacks =
-    std::unordered_map<std::string, std::vector<log_callback_t>>;
+using LoggingCallbacks = std::unordered_map<std::string, std::vector<log_callback_t>>;
 
 constexpr uint32_t str_hash(std::string_view data) noexcept
 {
@@ -77,8 +77,7 @@ struct Logger
         return callbacks;
     }
 
-    static void HookCallback(const std::string& group,
-                            const log_callback_t& callback)
+    static void HookCallback(const std::string& group, const log_callback_t& callback)
     {
         GetCallbacks()[group].push_back(callback);
     }

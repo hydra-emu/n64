@@ -1,13 +1,13 @@
 #include <algorithm>
 #include <compatibility.hxx>
-#include <n64_log.hxx>
-#include <n64_addresses.hxx>
-#include <n64_rdp.hxx>
-#include <n64_rsp.hxx>
 #include <cstdint>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <n64_addresses.hxx>
+#include <n64_log.hxx>
+#include <n64_rdp.hxx>
+#include <n64_rsp.hxx>
 #include <sstream>
 
 #define RSP_LOGGING false
@@ -298,7 +298,8 @@ namespace cerberus
 
     void RSP::branch_to(uint16_t address)
     {
-        // TODO: Make it so that addresses are always correct (i.e. don't & on EVERY tick)
+        // TODO: Make it so that addresses are always correct (i.e. don't & on EVERY
+        // tick)
         next_pc_ = (address & ~0b11) & 0xFFF;
     }
 
@@ -315,34 +316,40 @@ namespace cerberus
         gpr_regs_[reg].UW = pc_ + 4;
     }
 
-    inline void dma(uint8_t*& dest, uint8_t*& source, uint32_t& dma_len, bool dma_imem, bool rdram_to_mem)
+    inline void dma(uint8_t*& dest, uint8_t*& source, uint32_t& dma_len, bool dma_imem,
+                    bool rdram_to_mem)
     {
         uint32_t bytes_per_row = dma_len & 0xFFF;
         uint32_t row_count = (dma_len >> 12) & 0xFF;
         uint32_t row_stride = (dma_len >> 20) & 0xFF8;
 
-        do {
-            for (uint32_t j = 0; j <= bytes_per_row; j+=8)
+        do
+        {
+            for (uint32_t j = 0; j <= bytes_per_row; j += 8)
             {
                 memcpy(dest, source, 8);
                 dest += 8;
                 source += 8;
             }
 
-            if (row_count == 0) {
+            if (row_count == 0)
+            {
                 break;
             }
             row_count--;
-            if (rdram_to_mem) {
+            if (rdram_to_mem)
+            {
                 source += row_stride;
-            } else {
+            }
+            else
+            {
                 dest += row_stride;
             }
         } while (1);
 
         // After the DMA transfer is finished, this field contains the value 0xFF8
-        // The reason is that the field is internally decremented by 8 for each transferred word
-        // so the final value will be -8 (in hex, 0xFF8)
+        // The reason is that the field is internally decremented by 8 for each
+        // transferred word so the final value will be -8 (in hex, 0xFF8)
         dma_len = (row_stride << 20) | 0xFF8;
     }
 
@@ -689,7 +696,8 @@ namespace cerberus
         switch (instruction_.WCType.opcode)
         {
             case 0x0:
-                exit(1); return LBV();
+                exit(1);
+                return LBV();
             case 0x1:
                 return LSV();
             case 0x2:
@@ -875,7 +883,8 @@ namespace cerberus
         auto element = (16 - (e & ~1)) >> 1;
         auto base = (address & 7) - (e & ~1);
         address &= ~7;
-        for(uint32_t offset = start; offset < end; offset++) {
+        for (uint32_t offset = start; offset < end; offset++)
+        {
             store_byte(address + (base++ & 15), vu_regs_[offset][(element & 7)] >> 8);
             store_byte(address + (base++ & 15), vu_regs_[offset][(element & 7)]);
             element++;
@@ -977,20 +986,22 @@ namespace cerberus
 
     void RSP::LTV()
     {
-        uint32_t address = gpr_regs_[instruction_.WCType.base].UW + (static_cast<int8_t>(instruction_.WCType.offset << 1) << 3);
+        uint32_t address = gpr_regs_[instruction_.WCType.base].UW +
+                           (static_cast<int8_t>(instruction_.WCType.offset << 1) << 3);
         uint8_t e = instruction_.WCType.element;
         uint32_t base = address & ~7;
         uint32_t current = base + (((address & 8) + e) & 15);
         uint8_t vtbase = instruction_.WCType.vt & ~7;
 
-        for (uint32_t i = 0; i < 8; i++) {
+        for (uint32_t i = 0; i < 8; i++)
+        {
             VectorRegister& vt = vu_regs_[vtbase + (((e >> 1) + i) & 7)];
             vt[i] = load_byte(base + (current++ & 0xF)) << 8;
             vt[i] |= load_byte(base + (current++ & 0xF));
         }
     }
 
-    template<class T>
+    template <class T>
     void RSP::VLOGICAL(T operation)
     {
         VectorRegister& vd = get_vd();

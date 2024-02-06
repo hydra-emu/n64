@@ -1,7 +1,7 @@
 #pragma once
 
-#include <n64_types.hxx>
 #include <functional>
+#include <n64_types.hxx>
 
 namespace cerberus
 {
@@ -238,7 +238,7 @@ namespace cerberus
     private:
         using func_ptr = void (*)(RSP*);
 
-        template<class T>
+        template <class T>
         inline void VLOGICAL(T operation);
 
         void VMULF(), VMULU(), VMUDL(), VMUDM(), VMUDN(), VMUDH(), VMACF(), VMACU(), VMADL(),
@@ -390,8 +390,8 @@ namespace cerberus
         bool div_in_ready_ = false;
 
         // Each vector slice has a 48-bit accumulator associated with it. Each 16-bit
-        // element of a vector register maps to a vector slice, and therefore to a different
-        // 48-bit accumulato
+        // element of a vector register maps to a vector slice, and therefore to a
+        // different 48-bit accumulato
         std::array<AccumulatorLane, 8> accumulator_;
 
         // TODO: some are probably not needed

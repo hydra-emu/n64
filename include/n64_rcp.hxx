@@ -1,11 +1,11 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <n64_ai.hxx>
 #include <n64_rdp.hxx>
 #include <n64_rsp.hxx>
 #include <n64_vi.hxx>
-#include <cstdint>
 
 namespace cerberus
 {

@@ -125,15 +125,16 @@ namespace hydra
 #endif
     }
 
-        inline uint32_t crc32_u8(uint32_t crc, uint8_t byte)
+    inline uint32_t crc32_u8(uint32_t crc, uint8_t byte)
+    {
+        crc = crc ^ byte;
+        for (int j = 7; j >= 0; j--)
         {
-            crc = crc ^ byte;
-            for (int j = 7; j >= 0; j--) {
-                uint32_t mask = -(crc & 1);
-                crc = (crc >> 1) ^ (0x82f63b78 & mask);
-            }
-            return crc;
+            uint32_t mask = -(crc & 1);
+            crc = (crc >> 1) ^ (0x82f63b78 & mask);
         }
+        return crc;
+    }
 
     //     inline uint32_t crc32_u16(uint32_t crc, uint16_t data)
     //     {
