@@ -1,6 +1,6 @@
-#include <core/n64_rcp.hxx>
+#include <n64_rcp.hxx>
 
-namespace hydra::N64
+namespace cerberus
 {
     void RCP::Reset()
     {
@@ -10,4 +10,4 @@ namespace hydra::N64
         vi_.Reset();
     }
 
-} // namespace hydra::N64
+} // namespace cerberus

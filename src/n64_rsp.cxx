@@ -1,9 +1,9 @@
 #include <algorithm>
 #include <compatibility.hxx>
-#include <core/n64_log.hxx>
-#include <core/n64_addresses.hxx>
-#include <core/n64_rdp.hxx>
-#include <core/n64_rsp.hxx>
+#include <n64_log.hxx>
+#include <n64_addresses.hxx>
+#include <n64_rdp.hxx>
+#include <n64_rsp.hxx>
 #include <cstdint>
 #include <fstream>
 #include <iomanip>
@@ -143,7 +143,7 @@ constexpr std::array<uint16_t, 0x200> RSQ_TABLE = {
     0x0206, 0x01c4, 0x0183, 0x0142, 0x0101, 0x00c0, 0x0080, 0x0040,
 };
 
-namespace hydra::N64
+namespace cerberus
 {
 #define vuinstr (VUInstruction(instruction_.full))
 #define rdreg (gpr_regs_[instruction_.RType.rd])
@@ -2355,7 +2355,7 @@ namespace hydra::N64
         Logger::Fatal("RSP: CACHE not implemented");
     }
 
-} // namespace hydra::N64
+} // namespace cerberus
 
 #undef vuinstr
 #undef rdreg

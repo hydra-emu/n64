@@ -1,9 +1,9 @@
 #include <compatibility.hxx>
-#include <core/n64_addresses.hxx>
+#include <n64_addresses.hxx>
 #include <bitset>
 #include <cassert>
 #include <cmath>
-#include <core/n64_cpu.hxx>
+#include <n64_cpu.hxx>
 #include <cstring>
 #include <fstream>
 #include <functional>
@@ -15,19 +15,13 @@
 
 #define CPU_LOGGING false
 
-namespace hydra::N64
+namespace cerberus
 {
-    std::vector<uint8_t> CPUBus::ipl_{};
-
-    CPUBus::CPUBus(RCP& rcp) : rcp_(rcp)
+    bool CPU::LoadCartridge(const std::filesystem::path& path)
     {
-        cart_rom_.resize(0xFC00000);
-        rdram_.resize(0x800000);
-        map_direct_addresses();
-    }
+        if (path.empty())
+            return false;
 
-    bool CPUBus::LoadCartridge(std::string path)
-    {
         std::ifstream ifs(path, std::ios::in | std::ios::binary);
         if (ifs.is_open())
         {
@@ -45,19 +39,22 @@ namespace hydra::N64
         return true;
     }
 
-    bool CPUBus::LoadIPL(std::string path)
+    bool CPU::LoadIPL(const std::filesystem::path& path)
     {
+        if (path.empty())
+            return false;
+
         std::ifstream ifs(path, std::ios::in | std::ios::binary);
         if (ifs.is_open())
         {
-            if (CPUBus::ipl_.empty())
+            if (ipl_.empty())
             {
                 ifs.unsetf(std::ios::skipws);
                 ifs.seekg(0, std::ios::end);
                 std::streampos size = ifs.tellg();
                 ifs.seekg(0, std::ios::beg);
-                CPUBus::ipl_.resize(size);
-                ifs.read(reinterpret_cast<char*>(CPUBus::ipl_.data()), size);
+                ipl_.resize(size);
+                ifs.read(reinterpret_cast<char*>(ipl_.data()), size);
             }
         }
         else
@@ -68,54 +65,7 @@ namespace hydra::N64
         return true;
     }
 
-    // These resets are called multiple times - why?
-    void CPUBus::Reset()
-    {
-        pif_ram_.fill(0);
-        time_ = 0;
-
-        if (cart_rom_.empty())
-            return;
-
-        uint32_t crc = 0xFFFF'FFFF;
-        for (int i = 0; i < 0x9c0; i++)
-        {
-            crc = hydra::crc32_u8(crc, cart_rom_[i + 0x40]);
-        }
-        crc ^= 0xFFFF'FFFF;
-
-        switch (crc)
-        {
-            // CIC-NUS-6103
-            case 0xea8f8526:
-            {
-                pif_ram_[0x26] = 0x78;
-                break;
-            }
-            // CIC-NUS-6105
-            case 0x1abca43c:
-            {
-                pif_ram_[0x26] = 0x91;
-                break;
-            }
-            // CIC-NUS-6106
-            case 0x7d286472:
-            {
-                pif_ram_[0x26] = 0x85;
-                break;
-            }
-            default:
-            {
-                Logger::Warn("Unknown CIC: {:08X}", crc);
-                pif_ram_[0x26] = 0x3F;
-                break;
-            }
-        }
-
-        pif_ram_[0x27] = 0x3F;
-    }
-
-    void CPUBus::map_direct_addresses()
+    void CPU::map_direct_addresses()
     {
         // https://wheremyfoodat.github.io/software-fastmem/
         constexpr uint32_t N64_PAGE_SIZE = 0x10000;
@@ -172,7 +122,7 @@ namespace hydra::N64
             }
             for (int i = 0; i < 64; i++)
             {
-                // pifcrc = hydra::crc32_u8(pifcrc, cpubus_.pif_ram_[i]);
+                // pifcrc = hydra::crc32_u8(pifcrc, pif_ram_[i]);
             }
             gprcrc ^= 0xFFFF'FFFF;
             fprcrc ^= 0xFFFF'FFFF;
@@ -196,32 +146,32 @@ namespace hydra::N64
         {
             case InterruptType::VI:
             {
-                cpubus_.mi_interrupt_.VI = value;
+                mi_interrupt_.VI = value;
                 break;
             }
             case InterruptType::SI:
             {
-                cpubus_.mi_interrupt_.SI = value;
+                mi_interrupt_.SI = value;
                 break;
             }
             case InterruptType::AI:
             {
-                cpubus_.mi_interrupt_.AI = value;
+                mi_interrupt_.AI = value;
                 break;
             }
             case InterruptType::PI:
             {
-                cpubus_.mi_interrupt_.PI = value;
+                mi_interrupt_.PI = value;
                 break;
             }
             case InterruptType::DP:
             {
-                cpubus_.mi_interrupt_.DP = value;
+                mi_interrupt_.DP = value;
                 break;
             }
             case InterruptType::SP:
             {
-                cpubus_.mi_interrupt_.SP = value;
+                mi_interrupt_.SP = value;
                 break;
             }
         }
@@ -243,37 +193,37 @@ namespace hydra::N64
             }
             case PI_DRAM_ADDR:
             {
-                cpubus_.pi_dram_addr_ = data;
+                pi_dram_addr_ = data;
                 return;
             }
             case PI_CART_ADDR:
             {
-                cpubus_.pi_cart_addr_ = data;
+                pi_cart_addr_ = data;
                 return;
             }
             case PI_RD_LEN:
             {
-                // std::memcpy(&cpubus_.rdram_[hydra::bswap32(cpubus_.pi_cart_addr_)],
-                // cpubus_.redirect_paddress(hydra::bswap32(cpubus_.pi_dram_addr_)), data + 1);
+                // std::memcpy(&rdram_[hydra::bswap32(pi_cart_addr_)],
+                // redirect_paddress(hydra::bswap32(pi_dram_addr_)), data + 1);
                 Logger::Warn("PI_RD_LEN write");
                 set_interrupt(InterruptType::PI, true);
                 return;
             }
             case PI_WR_LEN:
             {
-                auto cart_addr = cpubus_.pi_cart_addr_ & 0xFFFFFFFE;
-                auto dram_addr = cpubus_.pi_dram_addr_ & 0x007FFFFE;
+                auto cart_addr = pi_cart_addr_ & 0xFFFFFFFE;
+                auto dram_addr = pi_dram_addr_ & 0x007FFFFE;
                 uint64_t length = data + 1;
                 if (cart_addr >= 0x8000000 && cart_addr < 0x10000000)
                 {
                     Logger::Warn("DMA to SRAM is unimplemented!");
-                    cpubus_.dma_busy_ = false;
+                    dma_busy_ = false;
                     set_interrupt(InterruptType::PI, true);
                     return;
                 }
-                std::memcpy(&cpubus_.rdram_[dram_addr], cpubus_.redirect_paddress(cart_addr),
+                std::memcpy(&rdram_[dram_addr], redirect_paddress(cart_addr),
                             length);
-                cpubus_.dma_busy_ = true;
+                dma_busy_ = true;
                 // uint8_t domain = 0;
                 // if ((cart_addr >= 0x0800'0000 && cart_addr < 0x1000'0000) ||
                 //     (cart_addr >= 0x0500'0000 && cart_addr < 0x0600'0000))
@@ -285,55 +235,55 @@ namespace hydra::N64
                 //     domain = 1;
                 // }
                 // auto cycles = timing_pi_access(domain, length);
-                cpubus_.dma_busy_ = false;
+                dma_busy_ = false;
                 set_interrupt(InterruptType::PI, true);
                 Logger::Debug("Raising PI interrupt");
                 return;
             }
             case PI_BSD_DOM1_PWD:
             {
-                cpubus_.pi_bsd_dom1_pwd_ = data & 0xFF;
+                pi_bsd_dom1_pwd_ = data & 0xFF;
                 return;
             }
             case PI_BSD_DOM2_PWD:
             {
-                cpubus_.pi_bsd_dom2_lat_ = data & 0xFF;
+                pi_bsd_dom2_lat_ = data & 0xFF;
                 return;
             }
             case PI_BSD_DOM1_PGS:
             {
-                cpubus_.pi_bsd_dom1_pgs_ = data & 0xFF;
+                pi_bsd_dom1_pgs_ = data & 0xFF;
                 return;
             }
             case PI_BSD_DOM2_PGS:
             {
-                cpubus_.pi_bsd_dom2_pgs_ = data & 0xFF;
+                pi_bsd_dom2_pgs_ = data & 0xFF;
                 return;
             }
             case PI_BSD_DOM1_LAT:
             {
-                cpubus_.pi_bsd_dom1_lat_ = data & 0xFF;
+                pi_bsd_dom1_lat_ = data & 0xFF;
                 return;
             }
             case PI_BSD_DOM2_LAT:
             {
-                cpubus_.pi_bsd_dom2_lat_ = data & 0xFF;
+                pi_bsd_dom2_lat_ = data & 0xFF;
                 return;
             }
             case PI_BSD_DOM1_RLS:
             {
-                cpubus_.pi_bsd_dom1_rls_ = data & 0xFF;
+                pi_bsd_dom1_rls_ = data & 0xFF;
                 return;
             }
             case PI_BSD_DOM2_RLS:
             {
-                cpubus_.pi_bsd_dom2_rls_ = data & 0xFF;
+                pi_bsd_dom2_rls_ = data & 0xFF;
                 return;
             }
             case MI_MODE:
             {
                 // TODO: properly implement
-                cpubus_.mi_mode_ = data;
+                mi_mode_ = data;
 
                 if ((data >> 11) & 0b1)
                 {
@@ -347,7 +297,7 @@ namespace hydra::N64
                 {
                     if (data & j)
                     {
-                        cpubus_.mi_mask_ |= 1 << i;
+                        mi_mask_ |= 1 << i;
                     }
                     j <<= 2;
                 }
@@ -355,7 +305,7 @@ namespace hydra::N64
                 {
                     if (data & j)
                     {
-                        cpubus_.mi_mask_ &= ~(1 << i);
+                        mi_mask_ &= ~(1 << i);
                     }
                     j <<= 2;
                 }
@@ -364,13 +314,13 @@ namespace hydra::N64
             }
             case SI_DRAM_ADDR:
             {
-                cpubus_.si_dram_addr_ = data;
+                si_dram_addr_ = data;
                 return;
             }
             case SI_PIF_AD_WR64B:
             {
-                std::memcpy(cpubus_.pif_ram_.data(),
-                            &cpubus_.rdram_[cpubus_.si_dram_addr_ & 0xff'ffff], 64);
+                std::memcpy(pif_ram_.data(),
+                            &rdram_[si_dram_addr_ & 0xff'ffff], 64);
                 pif_command();
                 set_interrupt(InterruptType::SI, true);
                 Logger::Debug("Raising SI interrupt");
@@ -379,8 +329,8 @@ namespace hydra::N64
             case SI_PIF_AD_RD64B:
             {
                 pif_command();
-                std::memcpy(&cpubus_.rdram_[cpubus_.si_dram_addr_ & 0xff'ffff],
-                            cpubus_.pif_ram_.data(), 64);
+                std::memcpy(&rdram_[si_dram_addr_ & 0xff'ffff],
+                            pif_ram_.data(), 64);
                 set_interrupt(InterruptType::SI, true);
                 Logger::Debug("Raising SI interrupt");
                 return;
@@ -441,14 +391,14 @@ namespace hydra::N64
         }
         else if (addr >= PIF_START && addr <= PIF_END)
         {
-            uint8_t* pif_ptr = reinterpret_cast<uint8_t*>(&cpubus_.pif_ram_[addr - PIF_START]);
+            uint8_t* pif_ptr = reinterpret_cast<uint8_t*>(&pif_ram_[addr - PIF_START]);
             uint32_t swapped = hydra::bswap32(data);
             memcpy(pif_ptr, &swapped, 4);
             pif_command();
         }
         else if (addr == PIF_COMMAND)
         {
-            cpubus_.pif_ram_[63] = data;
+            pif_ram_[63] = data;
             pif_command();
         }
         else if (addr == ISVIEWER_FLUSH)
@@ -456,7 +406,7 @@ namespace hydra::N64
             std::stringstream ss;
             for (uint32_t i = 0; i < data; i++)
             {
-                ss << cpubus_.isviewer_buffer_[i];
+                ss << isviewer_buffer_[i];
             }
             std::cout << ss.str();
         }
@@ -465,7 +415,7 @@ namespace hydra::N64
             data = hydra::bswap32(data);
             for (int i = 0; i < 4; i++)
             {
-                cpubus_.isviewer_buffer_[addr - ISVIEWER_AREA_START + i] = data >> (i * 8);
+                isviewer_buffer_[addr - ISVIEWER_AREA_START + i] = data >> (i * 8);
             }
         }
         else if (addr >= RI_AREA_START && addr <= RI_AREA_END)
@@ -494,45 +444,45 @@ namespace hydra::N64
         switch (addr)
         {
             // MIPS Interface
-            redir_case(MI_MODE, cpubus_.mi_mode_);
+            redir_case(MI_MODE, mi_mode_);
             case MI_VERSION:
             {
                 return 0x02020102;
             }
-                redir_case(MI_INTERRUPT, cpubus_.mi_interrupt_.full);
-                redir_case(MI_MASK, cpubus_.mi_mask_);
+                redir_case(MI_INTERRUPT, mi_interrupt_.full);
+                redir_case(MI_MASK, mi_mask_);
                 // Peripheral Interface
-                redir_case(PI_DRAM_ADDR, cpubus_.pi_dram_addr_);
-                redir_case(PI_CART_ADDR, cpubus_.pi_cart_addr_);
-                redir_case(PI_RD_LEN, cpubus_.pi_rd_len_);
-                redir_case(PI_WR_LEN, cpubus_.pi_wr_len_);
+                redir_case(PI_DRAM_ADDR, pi_dram_addr_);
+                redir_case(PI_CART_ADDR, pi_cart_addr_);
+                redir_case(PI_RD_LEN, pi_rd_len_);
+                redir_case(PI_WR_LEN, pi_wr_len_);
             case PI_STATUS:
             {
-                return cpubus_.dma_busy_ | (cpubus_.io_busy_ << 1) | (cpubus_.dma_error_ << 2) |
-                       (cpubus_.mi_interrupt_.PI << 3);
+                return dma_busy_ | (io_busy_ << 1) | (dma_error_ << 2) |
+                       (mi_interrupt_.PI << 3);
             }
-                redir_case(PI_BSD_DOM1_LAT, cpubus_.pi_bsd_dom1_lat_);
-                redir_case(PI_BSD_DOM1_PWD, cpubus_.pi_bsd_dom1_pwd_);
-                redir_case(PI_BSD_DOM1_PGS, cpubus_.pi_bsd_dom1_pgs_);
-                redir_case(PI_BSD_DOM1_RLS, cpubus_.pi_bsd_dom1_rls_);
-                redir_case(PI_BSD_DOM2_LAT, cpubus_.pi_bsd_dom2_lat_);
-                redir_case(PI_BSD_DOM2_PWD, cpubus_.pi_bsd_dom2_pwd_);
-                redir_case(PI_BSD_DOM2_PGS, cpubus_.pi_bsd_dom2_pgs_);
-                redir_case(PI_BSD_DOM2_RLS, cpubus_.pi_bsd_dom2_rls_);
+                redir_case(PI_BSD_DOM1_LAT, pi_bsd_dom1_lat_);
+                redir_case(PI_BSD_DOM1_PWD, pi_bsd_dom1_pwd_);
+                redir_case(PI_BSD_DOM1_PGS, pi_bsd_dom1_pgs_);
+                redir_case(PI_BSD_DOM1_RLS, pi_bsd_dom1_rls_);
+                redir_case(PI_BSD_DOM2_LAT, pi_bsd_dom2_lat_);
+                redir_case(PI_BSD_DOM2_PWD, pi_bsd_dom2_pwd_);
+                redir_case(PI_BSD_DOM2_PGS, pi_bsd_dom2_pgs_);
+                redir_case(PI_BSD_DOM2_RLS, pi_bsd_dom2_rls_);
 
                 // RDRAM Interface
-                redir_case(RI_MODE, cpubus_.ri_mode_);
-                redir_case(RI_CONFIG, cpubus_.ri_config_);
-                redir_case(RI_CURRENT_LOAD, cpubus_.ri_current_load_);
+                redir_case(RI_MODE, ri_mode_);
+                redir_case(RI_CONFIG, ri_config_);
+                redir_case(RI_CURRENT_LOAD, ri_current_load_);
                 redir_case(RI_SELECT, 0x14); // TODO: implement
-                redir_case(RI_REFRESH, cpubus_.ri_refresh_);
-                redir_case(RI_LATENCY, cpubus_.ri_latency_);
+                redir_case(RI_REFRESH, ri_refresh_);
+                redir_case(RI_LATENCY, ri_latency_);
 
                 // Serial Interface
-                redir_case(SI_DRAM_ADDR, cpubus_.si_dram_addr_);
-                redir_case(SI_PIF_AD_WR64B, cpubus_.si_pif_ad_wr64b_);
-                redir_case(SI_PIF_AD_RD64B, cpubus_.si_pif_ad_rd64b_);
-                redir_case(SI_STATUS, cpubus_.si_status_);
+                redir_case(SI_DRAM_ADDR, si_dram_addr_);
+                redir_case(SI_PIF_AD_WR64B, si_pif_ad_wr64b_);
+                redir_case(SI_PIF_AD_RD64B, si_pif_ad_rd64b_);
+                redir_case(SI_STATUS, si_status_);
 
             // RSP registers
             case RSP_DMA_SPADDR:
@@ -551,7 +501,7 @@ namespace hydra::N64
                 return rcp_.rsp_.read_hwio(RSPHWIO::Busy);
             case RSP_SEMAPHORE:
                 return rcp_.rsp_.read_hwio(RSPHWIO::Semaphore);
-                redir_case(PIF_COMMAND, cpubus_.pif_ram_[63]);
+                redir_case(PIF_COMMAND, pif_ram_[63]);
             case RSP_PC:
             {
                 if (!rcp_.rsp_.status_.halt)
@@ -583,7 +533,7 @@ namespace hydra::N64
         }
         else if (addr >= PIF_START && addr <= PIF_END)
         {
-            uint8_t* pif_ram = &cpubus_.pif_ram_[addr - PIF_START];
+            uint8_t* pif_ram = &pif_ram_[addr - PIF_START];
             uint32_t data = pif_ram[0] << 24 | pif_ram[1] << 16 | pif_ram[2] << 8 | pif_ram[3];
             return data;
         }
@@ -595,7 +545,7 @@ namespace hydra::N64
         else if (addr >= ISVIEWER_AREA_START && addr <= ISVIEWER_AREA_END)
         {
             uint8_t* isviewer_ptr =
-                reinterpret_cast<uint8_t*>(&cpubus_.isviewer_buffer_[addr - ISVIEWER_AREA_START]);
+                reinterpret_cast<uint8_t*>(&isviewer_buffer_[addr - ISVIEWER_AREA_START]);
             uint32_t data = isviewer_ptr[0] << 24 | isviewer_ptr[1] << 16 | isviewer_ptr[2] << 8 |
                             isviewer_ptr[3];
             return data;
@@ -631,19 +581,19 @@ namespace hydra::N64
 
     void CPU::pif_command()
     {
-        using namespace hydra::N64;
+        using namespace cerberus;
         poll_input_callback_();
-        auto command_byte = cpubus_.pif_ram_[63];
+        auto command_byte = pif_ram_[63];
         if (command_byte & 0x1)
         {
             pif_channel_ = 0;
             int i = 0;
             while (i < 63)
             {
-                int8_t tx = cpubus_.pif_ram_[i++];
+                int8_t tx = pif_ram_[i++];
                 if (tx > 0)
                 {
-                    uint8_t* rx_ptr = &cpubus_.pif_ram_[i++];
+                    uint8_t* rx_ptr = &pif_ram_[i++];
                     if (*rx_ptr == 0xFE)
                     {
                         break;
@@ -654,7 +604,7 @@ namespace hydra::N64
                     data.resize(tx);
                     for (int8_t j = 0; j < tx; j++)
                     {
-                        data[j] = cpubus_.pif_ram_[i++];
+                        data[j] = pif_ram_[i++];
                     }
                     // get response bytes
                     std::vector<uint8_t> response;
@@ -666,7 +616,7 @@ namespace hydra::N64
                     }
                     for (size_t j = 0; j < response.size(); j++)
                     {
-                        cpubus_.pif_ram_[i++] = response[j];
+                        pif_ram_[i++] = response[j];
                     }
                     pif_channel_++;
                 }
@@ -687,23 +637,23 @@ namespace hydra::N64
         }
         if (command_byte & 0x20)
         {
-            // cpubus_.pif_ram_[0x32] = 0;
-            // cpubus_.pif_ram_[0x33] = 0;
-            // cpubus_.pif_ram_[0x34] = 0;
-            // cpubus_.pif_ram_[0x35] = 0;
-            // cpubus_.pif_ram_[0x36] = 0;
-            // cpubus_.pif_ram_[0x37] = 0;
+            // pif_ram_[0x32] = 0;
+            // pif_ram_[0x33] = 0;
+            // pif_ram_[0x34] = 0;
+            // pif_ram_[0x35] = 0;
+            // pif_ram_[0x36] = 0;
+            // pif_ram_[0x37] = 0;
         }
         if (command_byte & 0x30)
         {
             command_byte = 0x80;
         }
-        cpubus_.pif_ram_[63] = command_byte;
+        pif_ram_[63] = command_byte;
     }
 
     void CPU::update_interrupt_check()
     {
-        bool mi_interrupt = cpubus_.mi_interrupt_.full & cpubus_.mi_mask_;
+        bool mi_interrupt = mi_interrupt_.full & mi_mask_;
         CP0Cause.IP2 = mi_interrupt;
         bool interrupts_pending = cp0_regs_[CP0_CAUSE].UB._1 & CP0Status.IM;
         bool interrupts_enabled = CP0Status.IE;
@@ -828,14 +778,18 @@ namespace hydra::N64
         }
     }
 
-    CPU::CPU(CPUBus& cpubus, RCP& rcp)
-        : gpr_regs_{}, fpr_regs_{}, instr_cache_(KB(16)), data_cache_(KB(8)), cpubus_(cpubus),
+    CPU::CPU(Scheduler& scheduler, RCP& rcp)
+        : gpr_regs_{}, fpr_regs_{}, scheduler_(scheduler),
           rcp_(rcp)
     {
-        rcp_.ai_.InstallBuses(&cpubus_.rdram_[0]);
-        rcp_.vi_.InstallBuses(&cpubus_.rdram_[0]);
-        rcp_.rsp_.InstallBuses(&cpubus_.rdram_[0], &rcp_.rdp_);
-        rcp_.rdp_.InstallBuses(&cpubus_.rdram_[0], &rcp_.rsp_.mem_[0]);
+        isviewer_buffer_.resize(ISVIEWER_AREA_END - ISVIEWER_AREA_START);
+        cart_rom_.resize(0xFC00000);
+        rdram_.resize(0x800000);
+        map_direct_addresses();
+        rcp_.ai_.InstallBuses(&rdram_[0]);
+        rcp_.vi_.InstallBuses(&rdram_[0]);
+        rcp_.rsp_.InstallBuses(&rdram_[0], &rcp_.rdp_);
+        rcp_.rdp_.InstallBuses(&rdram_[0], &rcp_.rsp_.mem_[0]);
         rcp_.ai_.SetInterruptCallback(
             std::bind(&CPU::set_interrupt, this, InterruptType::AI, std::placeholders::_1));
         rcp_.vi_.SetInterruptCallback(
@@ -863,7 +817,45 @@ namespace hydra::N64
         {
             reg.UD = 0;
         }
-        cpubus_.Reset();
+        pif_ram_.fill(0);
+        clock_ = 0;
+        if (!cart_rom_.empty())
+        {
+            uint32_t crc = 0xFFFF'FFFF;
+            for (int i = 0; i < 0x9c0; i++)
+            {
+                crc = hydra::crc32_u8(crc, cart_rom_[i + 0x40]);
+            }
+            crc ^= 0xFFFF'FFFF;
+            switch (crc)
+            {
+                // CIC-NUS-6103
+                case 0xea8f8526:
+                {
+                    pif_ram_[0x26] = 0x78;
+                    break;
+                }
+                // CIC-NUS-6105
+                case 0x1abca43c:
+                {
+                    pif_ram_[0x26] = 0x91;
+                    break;
+                }
+                // CIC-NUS-6106
+                case 0x7d286472:
+                {
+                    pif_ram_[0x26] = 0x85;
+                    break;
+                }
+                default:
+                {
+                    Logger::Warn("Unknown CIC: {:08X}", crc);
+                    pif_ram_[0x26] = 0x3F;
+                    break;
+                }
+            }
+            pif_ram_[0x27] = 0x3F;
+        }
         CP0Status.full = 0x3400'0000;
         CP0Cause.full = 0xB000'007C;
         cp0_regs_[CP0_EPC].UD = 0xFFFF'FFFF'FFFF'FFFFu;
@@ -897,16 +889,16 @@ namespace hydra::N64
         switch (domain)
         {
             case 1:
-                latency = cpubus_.pi_bsd_dom1_lat_ + 1;
-                pulse_width = cpubus_.pi_bsd_dom1_pwd_ + 1;
-                release = cpubus_.pi_bsd_dom1_rls_ + 1;
-                page_size = std::pow(2, (cpubus_.pi_bsd_dom1_pgs_ + 2));
+                latency = pi_bsd_dom1_lat_ + 1;
+                pulse_width = pi_bsd_dom1_pwd_ + 1;
+                release = pi_bsd_dom1_rls_ + 1;
+                page_size = std::pow(2, (pi_bsd_dom1_pgs_ + 2));
                 break;
             case 2:
-                latency = cpubus_.pi_bsd_dom2_lat_ + 1;
-                pulse_width = cpubus_.pi_bsd_dom2_pwd_ + 1;
-                release = cpubus_.pi_bsd_dom2_rls_ + 1;
-                page_size = pow(2, (cpubus_.pi_bsd_dom2_pgs_ + 2));
+                latency = pi_bsd_dom2_lat_ + 1;
+                pulse_width = pi_bsd_dom2_pwd_ + 1;
+                release = pi_bsd_dom2_rls_ + 1;
+                page_size = pow(2, (pi_bsd_dom2_pgs_ + 2));
                 break;
             default:
                 Logger::Fatal("Invalid PI domain");
@@ -920,8 +912,8 @@ namespace hydra::N64
 
     uint8_t CPU::load_byte(uint64_t vaddr)
     {
-        TranslatedAddress paddr = translate_vaddr(vaddr);
-        uint8_t* ptr = cpubus_.redirect_paddress(paddr.paddr);
+        PhysicalAddress paddr = translate_vaddr(vaddr);
+        uint8_t* ptr = redirect_paddress(paddr);
 
         if (!ptr)
         {
@@ -933,8 +925,8 @@ namespace hydra::N64
 
     uint16_t CPU::load_halfword(uint64_t vaddr)
     {
-        TranslatedAddress paddr = translate_vaddr(vaddr);
-        uint16_t* ptr = reinterpret_cast<uint16_t*>(cpubus_.redirect_paddress(paddr.paddr));
+        PhysicalAddress paddr = translate_vaddr(vaddr);
+        uint16_t* ptr = reinterpret_cast<uint16_t*>(redirect_paddress(paddr));
 
         if (!ptr)
         {
@@ -948,11 +940,11 @@ namespace hydra::N64
 
     uint32_t CPU::load_word(uint64_t vaddr)
     {
-        TranslatedAddress paddr = translate_vaddr(vaddr);
-        uint8_t* ptr = cpubus_.redirect_paddress(paddr.paddr);
+        PhysicalAddress paddr = translate_vaddr(vaddr);
+        uint8_t* ptr = redirect_paddress(paddr);
         if (!ptr)
         {
-            return read_hwio(paddr.paddr);
+            return read_hwio(paddr);
         }
         else
         {
@@ -964,8 +956,8 @@ namespace hydra::N64
 
     uint64_t CPU::load_doubleword(uint64_t vaddr)
     {
-        TranslatedAddress paddr = translate_vaddr(vaddr);
-        uint64_t* ptr = reinterpret_cast<uint64_t*>(cpubus_.redirect_paddress(paddr.paddr));
+        PhysicalAddress paddr = translate_vaddr(vaddr);
+        uint64_t* ptr = reinterpret_cast<uint64_t*>(redirect_paddress(paddr));
 
         if (!ptr)
         {
@@ -979,8 +971,8 @@ namespace hydra::N64
 
     void CPU::store_byte(uint64_t vaddr, uint8_t data)
     {
-        TranslatedAddress paddr = translate_vaddr(vaddr);
-        uint8_t* ptr = cpubus_.redirect_paddress(paddr.paddr);
+        PhysicalAddress paddr = translate_vaddr(vaddr);
+        uint8_t* ptr = redirect_paddress(paddr);
         if (!ptr)
         {
             Logger::Warn("Attempted to store byte to invalid address: {:08x}", vaddr);
@@ -991,8 +983,8 @@ namespace hydra::N64
 
     void CPU::store_halfword(uint64_t vaddr, uint16_t data)
     {
-        TranslatedAddress paddr = translate_vaddr(vaddr);
-        uint16_t* ptr = reinterpret_cast<uint16_t*>(cpubus_.redirect_paddress(paddr.paddr));
+        PhysicalAddress paddr = translate_vaddr(vaddr);
+        uint16_t* ptr = reinterpret_cast<uint16_t*>(redirect_paddress(paddr));
         if (!ptr)
         {
             Logger::Fatal("Attempted to store halfword to invalid address: {:08x}", vaddr);
@@ -1003,12 +995,12 @@ namespace hydra::N64
 
     void CPU::store_word(uint64_t vaddr, uint32_t data)
     {
-        TranslatedAddress paddr = translate_vaddr(vaddr);
-        uint32_t* ptr = reinterpret_cast<uint32_t*>(cpubus_.redirect_paddress(paddr.paddr));
-        bool isviewer = paddr.paddr <= ISVIEWER_AREA_END && paddr.paddr >= ISVIEWER_FLUSH;
+        PhysicalAddress paddr = translate_vaddr(vaddr);
+        uint32_t* ptr = reinterpret_cast<uint32_t*>(redirect_paddress(paddr));
+        bool isviewer = paddr <= ISVIEWER_AREA_END && paddr >= ISVIEWER_FLUSH;
         if (!ptr || isviewer)
         {
-            write_hwio(paddr.paddr, data);
+            write_hwio(paddr, data);
         }
         else
         {
@@ -1019,8 +1011,8 @@ namespace hydra::N64
 
     void CPU::store_doubleword(uint64_t vaddr, uint64_t data)
     {
-        TranslatedAddress paddr = translate_vaddr(vaddr);
-        uint64_t* ptr = reinterpret_cast<uint64_t*>(cpubus_.redirect_paddress(paddr.paddr));
+        PhysicalAddress paddr = translate_vaddr(vaddr);
+        uint64_t* ptr = reinterpret_cast<uint64_t*>(redirect_paddress(paddr));
         if (!ptr)
         {
             Logger::Fatal("Attempted to store doubleword to invalid address: {:08x}", vaddr);
@@ -1101,10 +1093,6 @@ namespace hydra::N64
                     {
                         pc_ = cp0_regs_[CP0_EPC].UD;
                         CP0Status.EXL = false;
-                    }
-                    if (!translate_vaddr(pc_).success)
-                    {
-                        Logger::Fatal("ERET jumped to invalid address {:016X}", pc_);
                     }
                     next_pc_ = pc_ + 4;
                     llbit_ = 0;
@@ -1210,7 +1198,7 @@ namespace hydra::N64
         ss << std::hex << std::setfill('0') << std::setw(2);
         for (int i = 0; i < 64; i++)
         {
-            ss << std::setfill('0') << std::setw(2) << static_cast<int>(cpubus_.pif_ram_[i]);
+            ss << std::setfill('0') << std::setw(2) << static_cast<int>(pif_ram_[i]);
         }
         std::cout << ss.str() << std::endl;
     }
@@ -1255,8 +1243,8 @@ namespace hydra::N64
         printf("rdram:\n");
         for (int i = 0; i < 0x80'000; i += 4)
         {
-            printf("%08x %08x %08x %08x\n", cpubus_.rdram_[i], cpubus_.rdram_[i + 1],
-                   cpubus_.rdram_[i + 2], cpubus_.rdram_[i + 3]);
+            printf("%08x %08x %08x %08x\n", rdram_[i], rdram_[i + 1],
+                   rdram_[i + 2], rdram_[i + 3]);
         }
     }
 
@@ -1456,11 +1444,12 @@ namespace hydra::N64
             throw_exception(prev_pc_, ExceptionType::AddressErrorStore);
             return;
         }
-        if (!mode64_ && opmode_ != OperatingMode::Kernel)
+        if (!is_kernel_mode())
         {
             // This operation is defined for the VR4300 operating in 64-bit mode and in 32-bit
             // Kernel mode. Execution of this instruction in 32-bit User or Supervisor mode
             // causes a reserved instruction exception.
+            printf("Forgot to check 32 bit mode for: SD");
             throw_exception(prev_pc_, ExceptionType::ReservedInstruction);
         }
         store_doubleword(address, rtreg.UD);
@@ -1613,11 +1602,12 @@ namespace hydra::N64
             throw_exception(prev_pc_, ExceptionType::AddressErrorLoad);
             return;
         }
-        if (!mode64_ && opmode_ != OperatingMode::Kernel)
+        if (!is_kernel_mode()) // TODO: check 64 bit mode
         {
             // This operation is defined for the VR4300 operating in 64-bit mode and in 32-bit
             // Kernel mode. Execution of this instruction in 32-bit User or Supervisor mode
             // causes a reserved instruction exception.
+            printf("Forgot to check 32 bit mode for: LD");
             throw_exception(prev_pc_, ExceptionType::ReservedInstruction);
             return;
         }
@@ -1639,7 +1629,7 @@ namespace hydra::N64
         }
         rtreg.D = static_cast<int32_t>(load_word(address));
         llbit_ = true;
-        lladdr_ = translate_vaddr(address).paddr;
+        lladdr_ = translate_vaddr(address);
     }
 
     void CPU::BGTZL()
@@ -2314,7 +2304,7 @@ namespace hydra::N64
         {
             return throw_exception(prev_pc_, ExceptionType::CoprocessorUnusable, 2);
         }
-        rtreg.D = static_cast<int32_t>(cp2_weirdness_);
+        rtreg.D = static_cast<int32_t>(cp2_latch_);
     }
 
     void CPU::DMFC2()
@@ -2323,7 +2313,7 @@ namespace hydra::N64
         {
             return throw_exception(prev_pc_, ExceptionType::CoprocessorUnusable, 2);
         }
-        rtreg.D = cp2_weirdness_;
+        rtreg.D = cp2_latch_;
     }
 
     void CPU::MTC2()
@@ -2332,7 +2322,7 @@ namespace hydra::N64
         {
             return throw_exception(prev_pc_, ExceptionType::CoprocessorUnusable, 2);
         }
-        cp2_weirdness_ = rtreg.UD;
+        cp2_latch_ = rtreg.UD;
     }
 
     void CPU::DMTC2()
@@ -2341,7 +2331,7 @@ namespace hydra::N64
         {
             return throw_exception(prev_pc_, ExceptionType::CoprocessorUnusable, 2);
         }
-        cp2_weirdness_ = rtreg.UD;
+        cp2_latch_ = rtreg.UD;
     }
 
     void CPU::CFC2()
@@ -2502,7 +2492,7 @@ namespace hydra::N64
             case CP0_INDEX:
                 return cp0_regs_[reg].UW._0 & 0x8000'003F;
             case CP0_COUNT:
-                return cpubus_.time_ >> 1;
+                return clock_ >> 1;
             case CP0_CAUSE:
             {
                 CP0CauseType newcause;
@@ -2534,7 +2524,7 @@ namespace hydra::N64
             case 24:
             case 25:
             case 31:
-                return cp0_weirdness_;
+                return cp0_latch_;
             default:
                 return cp0_regs_[reg].UW._0;
         }
@@ -2565,7 +2555,7 @@ namespace hydra::N64
 
     void CPU::set_cp0_register_32(uint8_t reg, uint32_t val)
     {
-        cp0_weirdness_ = val;
+        cp0_latch_ = val;
         int64_t value = static_cast<int32_t>(val);
         switch (reg)
         {
@@ -2611,11 +2601,13 @@ namespace hydra::N64
             {
                 CP0Cause.IP7 = false;
                 cp0_regs_[reg].UD = value;
+                scheduler_.unschedule(TaskType::Compare);
+                scheduler_.schedule(value << 1, TaskType::Compare);
                 break;
             }
             case CP0_COUNT:
             {
-                cpubus_.time_ = value << 1;
+                clock_ = value << 1;
                 break;
             }
             case CP0_CONFIG:
@@ -3765,4 +3757,4 @@ namespace hydra::N64
 #undef ftreg
 #undef fsreg
 #undef fdreg
-} // namespace hydra::N64
+} // namespace cerberus

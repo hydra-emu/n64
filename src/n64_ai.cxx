@@ -1,10 +1,10 @@
 #include <algorithm>
 #include <cstdint>
-#include <core/n64_addresses.hxx>
-#include <core/n64_ai.hxx>
+#include <n64_addresses.hxx>
+#include <n64_ai.hxx>
 #include <fstream>
 
-namespace hydra::N64
+namespace cerberus
 {
     void Ai::Reset()
     {
@@ -143,4 +143,4 @@ namespace hydra::N64
     {
         audio_callback_ = callback;
     }
-} // namespace hydra::N64
+} // namespace cerberus

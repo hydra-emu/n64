@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace hydra::N64
+namespace cerberus
 {
     union SetColorImageCommand
     {
@@ -331,4 +331,4 @@ namespace hydra::N64
             full = 0;
         }
     };
-} // namespace hydra::N64
+} // namespace cerberus

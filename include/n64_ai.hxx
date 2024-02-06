@@ -1,19 +1,18 @@
 #pragma once
 
 #include <array>
-#include <core/n64_log.hxx>
-#include <core/n64_types.hxx>
+#include <n64_log.hxx>
+#include <n64_types.hxx>
 #include <cstdint>
 #include <cstring>
 #include <functional>
 #include <vector>
 
-namespace hydra::N64
+namespace cerberus
 {
     class N64;
     class RCP;
     class CPU;
-    class CPUBus;
 
     constexpr uint32_t HOST_SAMPLE_RATE = 48000;
 
@@ -43,9 +42,8 @@ namespace hydra::N64
         uint8_t* rdram_ptr_ = nullptr;
         std::vector<int16_t> ai_buffer_{};
 
-        friend class hydra::N64::N64;
-        friend class hydra::N64::RCP;
-        friend class hydra::N64::CPU;
-        friend class hydra::N64::CPUBus;
+        friend class cerberus::N64;
+        friend class cerberus::RCP;
+        friend class cerberus::CPU;
     };
-} // namespace hydra::N64
+} // namespace cerberus

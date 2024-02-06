@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/n64_types.hxx>
+#include <n64_types.hxx>
 #include <cstring>
 #include <functional>
 #include <utility>
@@ -45,7 +45,7 @@
 
 using persp_func_ptr = std::pair<int32_t, int32_t> (*)(int32_t, int32_t, int32_t);
 
-namespace hydra::N64
+namespace cerberus
 {
     class RSP;
     union LoadTileCommand;
@@ -334,6 +334,6 @@ namespace hydra::N64
         Primitive edgewalker(const EdgewalkerInput& data);
         void render_primitive(const Primitive& primitive);
 
-        friend class hydra::N64::RSP;
+        friend class cerberus::RSP;
     };
-} // namespace hydra::N64
+} // namespace cerberus

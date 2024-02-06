@@ -11,13 +11,13 @@ if (EMSCRIPTEN)
 endif()
 set(N64_FILES
     core.cxx
-    core/n64_impl.cxx
-    core/n64_cpu.cxx
-    core/n64_rcp.cxx
-    core/n64_rsp.cxx
-    core/n64_rdp.cxx
-    core/n64_vi.cxx
-    core/n64_ai.cxx
+    src/core.cxx
+    src/n64_cpu.cxx
+    src/n64_rcp.cxx
+    src/n64_rsp.cxx
+    src/n64_rdp.cxx
+    src/n64_vi.cxx
+    src/n64_ai.cxx
 )
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 20)
@@ -27,6 +27,6 @@ set(CMAKE_C_FLAGS "-O3 -g")
 set(CMAKE_CXX_FLAGS "-O3 -g")
 add_subdirectory(vendored/fmt)
 add_library(cerberus SHARED ${N64_FILES})
-target_include_directories(cerberus PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} vendored/fmt/include core/hydra/include core/ vendored/)
+target_include_directories(cerberus PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} vendored/fmt/include vendored/ include hydra/include)
 target_link_libraries(cerberus fmt::fmt) # todo: use log interface
 set_property(TARGET cerberus PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)

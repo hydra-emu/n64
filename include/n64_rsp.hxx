@@ -1,9 +1,9 @@
 #pragma once
 
-#include <core/n64_types.hxx>
+#include <n64_types.hxx>
 #include <functional>
 
-namespace hydra::N64
+namespace cerberus
 {
     enum class RSPHWIO
     {
@@ -26,7 +26,6 @@ namespace hydra::N64
     };
 
     class CPU;
-    class CPUBus;
     class RCP;
     class RSP;
     class RDP;
@@ -409,8 +408,7 @@ namespace hydra::N64
         RDP* rdp_ptr_ = nullptr;
         std::function<void(bool)> interrupt_callback_;
 
-        friend class hydra::N64::CPU;
-        friend class hydra::N64::CPUBus;
-        friend class hydra::N64::RCP;
+        friend class cerberus::CPU;
+        friend class cerberus::RCP;
     };
-} // namespace hydra::N64
+} // namespace cerberus

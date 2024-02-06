@@ -3,10 +3,10 @@
 #include <bitset>
 #include <cassert>
 #include <compatibility.hxx>
-#include <core/n64_log.hxx>
-#include <core/n64_addresses.hxx>
-#include <core/n64_rdp.hxx>
-#include <core/n64_rdp_commands.hxx>
+#include <n64_log.hxx>
+#include <n64_addresses.hxx>
+#include <n64_rdp.hxx>
+#include <n64_rdp_commands.hxx>
 #include <cstdlib>
 #include <execution>
 #include <fstream>
@@ -56,7 +56,7 @@ static std::pair<int32_t, int32_t> no_perspective_correction(int32_t s, int32_t 
     return {(int16_t)(s >> 16), (int16_t)(t >> 16)};
 }
 
-namespace hydra::N64
+namespace cerberus
 {
     constexpr inline std::string_view get_rdp_command_name(RDPCommandType type)
     {
@@ -2153,4 +2153,4 @@ namespace hydra::N64
         );
         // clang-format on
     }
-} // namespace hydra::N64
+} // namespace cerberus

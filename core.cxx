@@ -1,6 +1,6 @@
 #include <cstdint>
 #include <hydra/core.hxx>
-#include <n64_impl.hxx>
+#include <core.hxx>
 
 class HydraCore : public hydra::IBase, public hydra::ISoftwareRendered, public hydra::IFrontendDriven, public hydra::IInput
 {
@@ -63,7 +63,7 @@ public:
     }
 
 private:
-    hydra::N64::N64 n64;
+    cerberus::N64 n64;
     void (*video_callback)(void* data, hydra::Size size) = nullptr;
 };
 

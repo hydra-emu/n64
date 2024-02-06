@@ -4,12 +4,11 @@
 #include <functional>
 #include <vector>
 
-namespace hydra::N64
+namespace cerberus
 {
     class N64;
     class RCP;
     class CPU;
-    class CPUBus;
 
     struct Vi
     {
@@ -46,9 +45,8 @@ namespace hydra::N64
         uint8_t* rdram_ptr_ = nullptr;
         std::function<void(bool)> interrupt_callback_;
 
-        friend class hydra::N64::RCP;
-        friend class hydra::N64::CPU;
-        friend class hydra::N64::CPUBus;
-        friend class hydra::N64::N64;
+        friend class cerberus::RCP;
+        friend class cerberus::CPU;
+        friend class cerberus::N64;
     };
-} // namespace hydra::N64
+} // namespace cerberus

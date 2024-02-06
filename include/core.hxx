@@ -1,19 +1,22 @@
 #pragma once
 
-#include "hydra/core.hxx"
-#include <core/n64_cpu.hxx>
-#include <core/n64_rcp.hxx>
+#include <hydra/core.hxx>
+#include <n64_scheduler.hxx>
+#include <n64_config.hxx>
+#include <n64_cpu.hxx>
+#include <n64_rcp.hxx>
 #include <cstdint>
 #include <string>
+#include <filesystem>
 
-namespace hydra::N64
+namespace cerberus
 {
     class N64
     {
     public:
         N64();
-        bool LoadCartridge(std::string path);
-        bool LoadIPL(std::string path);
+        bool LoadCartridge(const std::filesystem::path& path);
+        bool LoadIPL(const std::filesystem::path& path);
         void RunFrame();
         void Reset();
         void SetMousePos(int32_t x, int32_t y);
@@ -21,32 +24,33 @@ namespace hydra::N64
 
         void SetPollInputCallback(void(*callback)())
         {
-            cpu_.poll_input_callback_ = callback;
+            vr4300.poll_input_callback_ = callback;
         }
 
         void SetReadInputCallback(int32_t(*callback)(uint32_t, hydra::ButtonType))
         {
-            cpu_.read_input_callback_ = callback;
+            vr4300.read_input_callback_ = callback;
         }
 
         int GetWidth()
         {
-            return rcp_.vi_.width_;
+            return rcp.vi_.width_;
         }
 
         int GetHeight()
         {
-            return rcp_.vi_.height_;
+            return rcp.vi_.height_;
         }
 
         void RenderVideo(std::vector<uint8_t>& data)
         {
-            rcp_.vi_.Redraw(data);
+            rcp.vi_.Redraw(data);
         }
 
     private:
-        RCP rcp_;
-        CPUBus cpubus_;
-        CPU cpu_;
+        Scheduler scheduler;
+        RCP rcp;
+        CPU vr4300;
+        std::shared_ptr<Config> config;
     };
-} // namespace hydra::N64
+} // namespace cerberus

@@ -4,13 +4,22 @@
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <functional>
-#include <str_hash.hxx>
 #include <unordered_map>
 #include <vector>
 
 using log_callback_t = std::function<void(const char*)>;
 using LoggingCallbacks =
     std::unordered_map<std::string, std::vector<log_callback_t>>;
+
+constexpr uint32_t str_hash(std::string_view data) noexcept
+{
+    uint32_t hash = 5381;
+    const size_t size = data.size();
+    for (size_t i = 0; i < size; i++)
+        hash = ((hash << 5) + hash) + (unsigned char)data[i];
+
+    return hash;
+}
 
 struct Logger
 {

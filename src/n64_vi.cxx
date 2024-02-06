@@ -1,10 +1,10 @@
 #include <compatibility.hxx>
-#include <core/n64_log.hxx>
-#include <core/n64_addresses.hxx>
-#include <core/n64_types.hxx>
-#include <core/n64_vi.hxx>
+#include <n64_log.hxx>
+#include <n64_addresses.hxx>
+#include <n64_types.hxx>
+#include <n64_vi.hxx>
 
-namespace hydra::N64
+namespace cerberus
 {
     void Vi::Reset()
     {
@@ -217,4 +217,4 @@ namespace hydra::N64
         interrupt_callback_ = callback;
     }
 
-} // namespace hydra::N64
+} // namespace cerberus

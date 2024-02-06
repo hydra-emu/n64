@@ -1,22 +1,24 @@
 #pragma once
 
 #include "hydra/core.hxx"
+#include "n64_scheduler.hxx"
 #include <array>
 #include <cfenv>
 #include <cfloat>
 #include <chrono>
 #include <cmath>
 #include <compatibility.hxx>
-#include <core/n64_log.hxx>
+#include <n64_log.hxx>
 #include <concepts>
-#include <core/n64_addresses.hxx>
-#include <core/n64_rcp.hxx>
-#include <core/n64_types.hxx>
+#include <n64_addresses.hxx>
+#include <n64_rcp.hxx>
+#include <n64_types.hxx>
 #include <cstdint>
 #include <limits>
 #include <memory>
 #include <queue>
 #include <vector>
+#include <filesystem>
 
 #define KB(x) (static_cast<size_t>(x << 10))
 #define check_bit(x, y) ((x) & (1u << y))
@@ -160,16 +162,7 @@ static_assert(sizeof(CP0XContextType) == sizeof(uint64_t));
 #define CP0XContext (reinterpret_cast<CP0XContextType&>(cp0_regs_[CP0_XCONTEXT]))
 #define CP0EntryHi (reinterpret_cast<EntryHi&>(cp0_regs_[CP0_ENTRYHI]))
 
-namespace hydra
-{
-    namespace N64
-    {
-        class N64;
-        class QA;
-    } // namespace N64
-} // namespace hydra
-
-namespace hydra::N64
+namespace cerberus
 {
     enum class ControllerType : uint16_t
     {
@@ -194,43 +187,92 @@ namespace hydra::N64
         return (T(0) < val) - (val < T(0));
     }
 
-    constexpr static uint64_t OperationMasks[2] = {std::numeric_limits<uint32_t>::max(),
-                                                   std::numeric_limits<uint64_t>::max()};
-    // Only kernel mode is used for (most?) n64 licensed games
-    enum class OperatingMode
+    using PhysicalAddress = uint32_t;
+
+    template <auto MemberFunc>
+    static void lut_wrapper(CPU* cpu)
     {
-        User,
-        Supervisor,
-        Kernel
+        // Props: calc84maniac
+        // > making it into a template parameter lets the compiler avoid using an actual member
+        // function pointer at runtime
+        (cpu->*MemberFunc)();
+    }
+
+    enum class InterruptType
+    {
+        VI,
+        AI,
+        PI,
+        SI,
+        DP,
+        SP
     };
 
-    struct TranslatedAddress
-    {
-        uint32_t paddr;
-        bool cached;
-        bool success = false;
-    };
-
-    /**
-        32-bit address bus
-
-        @see https://n64brew.dev/wiki/Memory_map
-    */
-    class CPUBus
+    class CPU final
     {
     public:
-        CPUBus(RCP& rcp);
-        bool LoadCartridge(std::string path);
-        bool LoadIPL(std::string path);
+        CPU(Scheduler& scheduler, RCP& rcp);
+        inline void Tick()
+        {
+            ++clock_;
+            clock_ &= 0x1FFFFFFFF;
+            if (clock_ == (cp0_regs_[CP0_COMPARE].UD << 1)) [[unlikely]]
+            {
+                CP0Cause.IP7 = true;
+                update_interrupt_check();
+            }
+            gpr_regs_[0].UD = 0;
+            prev_branch_ = was_branch_;
+            was_branch_ = false;
+            PhysicalAddress paddr = translate_vaddr(pc_);
+            uint8_t* ptr = redirect_paddress(paddr);
+            instruction_.full = hydra::bswap32(*reinterpret_cast<uint32_t*>(ptr));
+            if (check_interrupts())
+            {
+                return;
+            }
+            // log_cpu_state<CPU_LOGGING>(true, 30'000'000, 0);
+            prev_pc_ = pc_;
+            pc_ = next_pc_;
+            next_pc_ += 4;
+            (instruction_table_[instruction_.IType.op])(this);
+        }
+        void Reset();
+
+        bool LoadCartridge(const std::filesystem::path& path);
+        bool LoadIPL(const std::filesystem::path& path);
 
         bool IsEverythingLoaded()
         {
             return rom_loaded_ && ipl_loaded_;
         }
 
-        void Reset();
-
     private:
+        RCP& rcp_;
+        Scheduler& scheduler_;
+
+        /// Registers
+        // r0 is hardwired to 0, r31 is the link register
+        std::array<MemDataUnionDW, 32> gpr_regs_;
+        std::array<MemDataUnionDW, 32> fpr_regs_;
+        std::array<MemDataUnionDW, 32> cp0_regs_;
+        std::array<TLBEntry, 32> tlb_;
+        // Special registers
+        uint64_t prev_pc_, pc_, next_pc_, hi_, lo_;
+        bool llbit_;
+        uint32_t lladdr_;
+        uint64_t fcr0_;
+        Instruction instruction_;
+        FCR31 fcr31_;
+        uint32_t cp0_latch_;
+        uint64_t cp2_latch_;
+        bool prev_branch_ = false, was_branch_ = false;
+        int pif_channel_ = 0;
+        ControllerType controller_type_ = ControllerType::Joypad;
+        int32_t mouse_x_, mouse_y_;
+        int32_t mouse_delta_x_, mouse_delta_y_;
+        bool should_service_interrupt_ = false;
+
         inline uint8_t* redirect_paddress(uint32_t paddr)
         {
             uint8_t* ptr = page_table_[paddr >> 16];
@@ -247,13 +289,13 @@ namespace hydra::N64
         }
         void map_direct_addresses();
 
-        static std::vector<uint8_t> ipl_;
+        std::vector<uint8_t> ipl_;
         std::vector<uint8_t> cart_rom_;
         bool rom_loaded_ = false;
         bool ipl_loaded_ = false;
         std::vector<uint8_t> rdram_{};
         std::vector<uint8_t> sram_{};
-        std::array<char, ISVIEWER_AREA_END - ISVIEWER_AREA_START> isviewer_buffer_{};
+        std::vector<char> isviewer_buffer_{};
         std::array<uint8_t, 64> pif_ram_{};
         std::array<uint8_t*, 0x10000> page_table_{};
 
@@ -295,102 +337,9 @@ namespace hydra::N64
         uint32_t si_pif_ad_rd64b_ = 0;
         uint32_t si_status_ = 0;
 
-        uint64_t time_ = 0;
+        uint64_t clock_ = 0;
 
-        RCP& rcp_;
-        friend class CPU;
-        friend class hydra::N64::N64;
-    };
-
-    template <auto MemberFunc>
-    static void lut_wrapper(CPU* cpu)
-    {
-        // Props: calc84maniac
-        // > making it into a template parameter lets the compiler avoid using an actual member
-        // function pointer at runtime
-        (cpu->*MemberFunc)();
-    }
-
-    enum class InterruptType
-    {
-        VI,
-        AI,
-        PI,
-        SI,
-        DP,
-        SP
-    };
-
-    class CPU final
-    {
-    public:
-        CPU(CPUBus& cpubus, RCP& rcp);
-        inline void Tick()
-        {
-            ++cpubus_.time_;
-            cpubus_.time_ &= 0x1FFFFFFFF;
-            if (cpubus_.time_ == (cp0_regs_[CP0_COMPARE].UD << 1)) [[unlikely]]
-            {
-                CP0Cause.IP7 = true;
-                update_interrupt_check();
-            }
-            gpr_regs_[0].UD = 0;
-            prev_branch_ = was_branch_;
-            was_branch_ = false;
-            TranslatedAddress paddr = translate_vaddr(pc_);
-            uint8_t* ptr = cpubus_.redirect_paddress(paddr.paddr);
-            instruction_.full = hydra::bswap32(*reinterpret_cast<uint32_t*>(ptr));
-            if (check_interrupts())
-            {
-                return;
-            }
-            // log_cpu_state<CPU_LOGGING>(true, 30'000'000, 0);
-            prev_pc_ = pc_;
-            pc_ = next_pc_;
-            next_pc_ += 4;
-            (instruction_table_[instruction_.IType.op])(this);
-        }
-        void Reset();
-
-    private:
-        using PipelineStageRet = void;
-        using PipelineStageArgs = void;
-        CPUBus& cpubus_;
-        RCP& rcp_;
-
-        OperatingMode opmode_ = OperatingMode::Kernel;
-        // To be used with OpcodeMasks (OpcodeMasks[mode64_])
-        bool mode64_ = false;
-        /// Registers
-        // r0 is hardwired to 0, r31 is the link register
-        std::array<MemDataUnionDW, 32> gpr_regs_;
-        std::array<MemDataUnionDW, 32> fpr_regs_;
-        std::array<MemDataUnionDW, 32> cp0_regs_;
-        std::array<TLBEntry, 32> tlb_;
-        uint64_t temp;
-        // CPU cache
-        std::vector<uint8_t> instr_cache_;
-        std::vector<uint8_t> data_cache_;
-        // Special registers
-        uint64_t prev_pc_, pc_, next_pc_, hi_, lo_;
-        bool llbit_;
-        uint32_t lladdr_;
-        uint64_t fcr0_;
-        Instruction instruction_;
-        FCR31 fcr31_;
-        uint32_t cp0_weirdness_;
-        uint64_t cp2_weirdness_;
-        bool prev_branch_ = false, was_branch_ = false;
-        uint32_t tlb_offset_mask_ = 0;
-        int pif_channel_ = 0;
-        int vis_per_second_ = 0;
-        ControllerType controller_type_ = ControllerType::Joypad;
-        int32_t mouse_x_, mouse_y_;
-        int32_t mouse_delta_x_, mouse_delta_y_;
-        std::chrono::time_point<std::chrono::high_resolution_clock> last_second_time_;
-        bool should_service_interrupt_ = false;
-
-        inline TranslatedAddress translate_vaddr(uint32_t vaddr)
+        inline PhysicalAddress translate_vaddr(uint32_t vaddr)
         {
             if (is_kernel_mode()) [[likely]]
             {
@@ -402,21 +351,16 @@ namespace hydra::N64
             }
             return {};
         }
-        inline TranslatedAddress translate_vaddr_kernel(uint32_t addr)
+        inline PhysicalAddress translate_vaddr_kernel(uint32_t addr)
         {
             if (addr >= 0x80000000 && addr <= 0xBFFFFFFF) [[likely]]
             {
-                return {addr & 0x1FFFFFFF, true, true};
+                return addr & 0x1FFFFFFF;
             }
             else if (addr >= 0 && addr <= 0x7FFFFFFF)
             {
                 // User segment
-                TranslatedAddress paddr = probe_tlb(addr);
-                if (!paddr.success)
-                {
-                    throw_exception(prev_pc_, ExceptionType::TLBMissLoad);
-                    set_cp0_regs_exception(addr);
-                }
+                PhysicalAddress paddr = probe_tlb(addr);
                 return paddr;
             }
             else if (addr >= 0xC0000000 && addr <= 0xDFFFFFFF)
@@ -431,7 +375,7 @@ namespace hydra::N64
             }
             return {};
         }
-        inline TranslatedAddress probe_tlb(uint32_t vaddr)
+        inline PhysicalAddress probe_tlb(uint32_t vaddr)
         {
             for (const TLBEntry& entry : tlb_)
             {
@@ -466,14 +410,12 @@ namespace hydra::N64
                         elo.full = entry.entry_even.full;
                     }
                     uint32_t paddr = (elo.PFN << 12) | (vaddr & offset_mask);
-                    return {
-                        .paddr = paddr,
-                        .cached = elo.C != 2,
-                        .success = true,
-                    };
+                    return paddr;
                 }
             }
             Logger::Warn("TLB miss at {:08x}", vaddr);
+            throw_exception(prev_pc_, ExceptionType::TLBMissLoad);
+            set_cp0_regs_exception(vaddr);
             return {};
         }
 
@@ -639,6 +581,6 @@ namespace hydra::N64
         std::function<void()> poll_input_callback_;
         std::function<int32_t(uint32_t, hydra::ButtonType)> read_input_callback_;
 
-        friend class hydra::N64::N64;
+        friend class cerberus::N64;
     };
-} // namespace hydra::N64
+} // namespace cerberus

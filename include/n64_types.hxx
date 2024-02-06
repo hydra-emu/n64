@@ -5,7 +5,7 @@
 #include <limits>
 #include <string>
 
-namespace hydra::N64
+namespace cerberus
 {
     constexpr uint32_t EMPTY_INSTRUCTION = 0xFFFFFFFF;
 
@@ -493,4 +493,4 @@ namespace hydra::N64
     static_assert(sizeof(MemDataUnionDW) == sizeof(int64_t), "Size of MemDataUnionDW mismatch!");
     static_assert(std::numeric_limits<float>::is_iec559,
                   "float data type is not ISO/IEC/IEEE 60559:2011 compliant!");
-} // namespace hydra::N64
+} // namespace cerberus
