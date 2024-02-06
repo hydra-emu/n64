@@ -1,3 +1,4 @@
+#include "cerberus/core/vr4300i.hxx"
 #include <cerberus/core/core.hxx>
 #include <cstdint>
 #include <hydra/core.hxx>
@@ -22,12 +23,12 @@ public:
         std::string stype = type;
         if (stype == "rom")
         {
-            n64.LoadCartridge(rom);
+            n64.loadCartridge(rom);
             return true;
         }
         else if (stype == "bios")
         {
-            n64.LoadIPL(rom);
+            n64.loadIpl(rom);
             return true;
         }
         return false;
@@ -35,7 +36,7 @@ public:
 
     void reset() override
     {
-        n64.Reset();
+        n64.reset();
     }
 
     hydra::Size getNativeSize() override
@@ -54,7 +55,7 @@ public:
     // IFrontendDriven
     void runFrame() override
     {
-        n64.RunFrame();
+        n64.run();
         std::vector<uint8_t> data;
         n64.RenderVideo(data);
         video_callback(data.data(), {(uint32_t)n64.GetWidth(), (uint32_t)n64.GetHeight()});
@@ -76,7 +77,7 @@ public:
     }
 
 private:
-    cerberus::N64 n64;
+    cerberus::N64<cerberus::CPU> n64;
     void (*video_callback)(void* data, hydra::Size size) = nullptr;
 };
 

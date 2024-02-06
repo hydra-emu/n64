@@ -9,23 +9,21 @@
 
 namespace cerberus
 {
-    class N64;
-} // namespace cerberus
-
-namespace cerberus
-{
     class RCP final
     {
     public:
-        void Reset();
+        void reset();
+        void redraw(std::vector<uint8_t>& data);
+        int getWidth();
+        int getHeight();
+        void setAudioCallback(void (*callback)(const int16_t*, uint32_t, int));
 
     private:
-        Vi vi_;
-        Ai ai_;
+        Vi vi;
+        Ai ai;
         RSP rsp;
         RDP rdp;
 
-        friend class cerberus::N64;
         friend class cerberus::CPU;
     };
 } // namespace cerberus

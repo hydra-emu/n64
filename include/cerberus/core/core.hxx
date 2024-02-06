@@ -11,46 +11,73 @@
 
 namespace cerberus
 {
+
+    template<class CPUType>
     class N64
     {
     public:
-        N64();
-        bool LoadCartridge(const std::filesystem::path& path);
-        bool LoadIPL(const std::filesystem::path& path);
-        void RunFrame();
-        void Reset();
-        void SetMousePos(int32_t x, int32_t y);
-        void SetAudioCallback(void (*callback)(const int16_t*, uint32_t, int));
+        N64() : cpu(scheduler, rcp) {}
+
+        bool loadCartridge(const std::filesystem::path& path)
+        {
+            bool loaded = cpu.loadCartridge(path);
+            if (loaded)
+                reset();
+            return loaded;
+        }
+
+        bool loadIpl(const std::filesystem::path& path)
+        {
+            return cpu.loadIpl(path);
+        }
+
+        // Run about a frames worth of instructions
+        void run()
+        {
+            cpu.run();
+        }
+
+        void reset()
+        {
+            scheduler.reset();
+            cpu.reset();
+            rcp.reset();
+        }
+
+        void SetAudioCallback(void (*callback)(const int16_t*, uint32_t, int))
+        {
+            rcp.setAudioCallback(callback);
+        }
 
         void SetPollInputCallback(void (*callback)())
         {
-            vr4300.poll_input_callback_ = callback;
+            cpu.setPollInputCallback(callback);
         }
 
         void SetReadInputCallback(int32_t (*callback)(uint32_t, hydra::ButtonType))
         {
-            vr4300.read_input_callback_ = callback;
+            cpu.setReadInputCallback(callback);
         }
 
         int GetWidth()
         {
-            return rcp.vi_.width_;
+            return rcp.getWidth();
         }
 
         int GetHeight()
         {
-            return rcp.vi_.height_;
+            return rcp.getHeight();
         }
 
         void RenderVideo(std::vector<uint8_t>& data)
         {
-            rcp.vi_.Redraw(data);
+            rcp.redraw(data);
         }
 
     private:
         Scheduler scheduler;
         RCP rcp;
-        CPU vr4300;
+        CPUType cpu;
         std::shared_ptr<Config> config;
     };
 } // namespace cerberus

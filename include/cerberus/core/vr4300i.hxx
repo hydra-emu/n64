@@ -214,6 +214,55 @@ namespace cerberus
     public:
         CPU(Scheduler& scheduler, RCP& rcp);
 
+        void run()
+        {
+            static int cycles = 0;
+            for (int f = 0; f < 1; f++)
+            { // fields
+                for (int hl = 0; hl < rcp.vi.num_halflines_; hl++)
+                { // halflines
+                    rcp.vi.vi_v_current_ = (hl << 1) + f;
+                    check_vi_interrupt();
+                    while (cycles <= rcp.vi.cycles_per_halfline_)
+                    {
+                        static int cpu_cycles = 0;
+                        cpu_cycles++;
+                        Tick();
+                        rcp.ai.Step();
+                        if (!rcp.rsp.IsHalted())
+                        {
+                            while (cpu_cycles > 2)
+                            {
+                                rcp.rsp.Tick();
+                                if (!rcp.rsp.IsHalted())
+                                {
+                                    rcp.rsp.Tick();
+                                }
+                                cpu_cycles -= 3;
+                            }
+                        }
+                        else
+                        {
+                            cpu_cycles = 0;
+                        }
+                        cycles++;
+                    }
+                    cycles -= rcp.vi.cycles_per_halfline_;
+                }
+                check_vi_interrupt();
+            }
+        }
+
+        void setReadInputCallback(int32_t (*callback)(uint32_t, hydra::ButtonType))
+        {
+            read_input_callback_ = callback;
+        }
+
+        void setPollInputCallback(void (*callback)())
+        {
+            poll_input_callback_ = callback;
+        }
+
         inline void Tick()
         {
             ++cycleClock;
@@ -240,10 +289,10 @@ namespace cerberus
             (instruction_table_[instruction.IType.op])(this);
         }
 
-        void Reset();
+        void reset();
 
-        bool LoadCartridge(const std::filesystem::path& path);
-        bool LoadIPL(const std::filesystem::path& path);
+        bool loadCartridge(const std::filesystem::path& path);
+        bool loadIpl(const std::filesystem::path& path);
 
     private:
         RCP& rcp;
@@ -577,7 +626,5 @@ namespace cerberus
 
         std::function<void()> poll_input_callback_;
         std::function<int32_t(uint32_t, hydra::ButtonType)> read_input_callback_;
-
-        friend class cerberus::N64;
     };
 } // namespace cerberus

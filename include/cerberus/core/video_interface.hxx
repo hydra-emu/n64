@@ -6,7 +6,6 @@
 
 namespace cerberus
 {
-    class N64;
     class RCP;
     class CPU;
 
@@ -47,6 +46,5 @@ namespace cerberus
 
         friend class cerberus::RCP;
         friend class cerberus::CPU;
-        friend class cerberus::N64;
     };
 } // namespace cerberus

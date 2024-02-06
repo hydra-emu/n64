@@ -11,8 +11,7 @@ if (EMSCRIPTEN)
 endif()
 set(N64_FILES
     src/hydra/core.cxx
-    src/cerberus/core/core.cxx
-    src/cerberus/core/vr4300i.cxx
+    src/cerberus/core/vr4300i_interpreter.cxx
     src/cerberus/core/rcp.cxx
     src/cerberus/core/rsp.cxx
     src/cerberus/core/rdp.cxx

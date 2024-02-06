@@ -17,7 +17,7 @@
 
 namespace cerberus
 {
-    bool CPU::LoadCartridge(const std::filesystem::path& path)
+    bool CPU::loadCartridge(const std::filesystem::path& path)
     {
         if (path.empty())
             return false;
@@ -38,7 +38,7 @@ namespace cerberus
         return true;
     }
 
-    bool CPU::LoadIPL(const std::filesystem::path& path)
+    bool CPU::loadIpl(const std::filesystem::path& path)
     {
         if (path.empty())
             return false;
@@ -335,12 +335,12 @@ namespace cerberus
         // Video interface
         if (addr >= VI_AREA_START && addr <= VI_AREA_END)
         {
-            rcp.vi_.WriteWord(addr, data);
+            rcp.vi.WriteWord(addr, data);
         }
         // Audio interface
         else if (addr >= AI_AREA_START && addr <= AI_AREA_END)
         {
-            rcp.ai_.WriteWord(addr, data);
+            rcp.ai.WriteWord(addr, data);
         }
         else if (addr >= RSP_AREA_START && addr <= RSP_AREA_END)
         {
@@ -514,12 +514,12 @@ namespace cerberus
         // Video interface
         if (addr >= VI_AREA_START && addr <= VI_AREA_END)
         {
-            return rcp.vi_.ReadWord(addr);
+            return rcp.vi.ReadWord(addr);
         }
         // Audio Interface
         else if (addr >= AI_AREA_START && addr <= AI_AREA_END)
         {
-            return rcp.ai_.ReadWord(addr);
+            return rcp.ai.ReadWord(addr);
         }
         else if (addr >= PIF_START && addr <= PIF_END)
         {
@@ -775,13 +775,13 @@ namespace cerberus
         cartridgeData.resize(0xFC00000);
         rdram.resize(0x800000);
         map_direct_addresses();
-        rcp.ai_.InstallBuses(&rdram[0]);
-        rcp.vi_.InstallBuses(&rdram[0]);
+        rcp.ai.InstallBuses(&rdram[0]);
+        rcp.vi.InstallBuses(&rdram[0]);
         rcp.rsp.InstallBuses(&rdram[0], &rcp.rdp);
         rcp.rdp.InstallBuses(&rdram[0], &rcp.rsp.mem_[0]);
-        rcp.ai_.SetInterruptCallback(
+        rcp.ai.SetInterruptCallback(
             std::bind(&CPU::set_interrupt, this, InterruptType::AI, std::placeholders::_1));
-        rcp.vi_.SetInterruptCallback(
+        rcp.vi.SetInterruptCallback(
             std::bind(&CPU::set_interrupt, this, InterruptType::VI, std::placeholders::_1));
         rcp.rsp.SetInterruptCallback(
             std::bind(&CPU::set_interrupt, this, InterruptType::SP, std::placeholders::_1));
@@ -789,7 +789,7 @@ namespace cerberus
             std::bind(&CPU::set_interrupt, this, InterruptType::DP, std::placeholders::_1));
     }
 
-    void CPU::Reset()
+    void CPU::reset()
     {
         Pc = 0xFFFF'FFFF'BFC0'0000;
         nextPc = Pc + 4;
@@ -1012,7 +1012,7 @@ namespace cerberus
 
     void CPU::check_vi_interrupt()
     {
-        if ((rcp.vi_.vi_v_current_ & 0x3fe) == rcp.vi_.vi_v_intr_)
+        if ((rcp.vi.vi_v_current_ & 0x3fe) == rcp.vi.vi_v_intr_)
         {
             Logger::Debug("Raising VI interrupt");
             set_interrupt(InterruptType::VI, true);

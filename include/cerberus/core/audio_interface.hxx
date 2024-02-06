@@ -10,7 +10,6 @@
 
 namespace cerberus
 {
-    class N64;
     class RCP;
     class CPU;
 
@@ -42,7 +41,6 @@ namespace cerberus
         uint8_t* rdram_ptr_ = nullptr;
         std::vector<int16_t> ai_buffer_{};
 
-        friend class cerberus::N64;
         friend class cerberus::RCP;
         friend class cerberus::CPU;
     };
