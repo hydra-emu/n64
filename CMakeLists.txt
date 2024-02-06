@@ -10,14 +10,14 @@ if (EMSCRIPTEN)
     set(CMAKE_STRIP FALSE)
 endif()
 set(N64_FILES
-    core.cxx
-    src/core.cxx
-    src/n64_cpu.cxx
-    src/n64_rcp.cxx
-    src/n64_rsp.cxx
-    src/n64_rdp.cxx
-    src/n64_vi.cxx
-    src/n64_ai.cxx
+    src/hydra/core.cxx
+    src/cerberus/core/core.cxx
+    src/cerberus/core/vr4300i.cxx
+    src/cerberus/core/rcp.cxx
+    src/cerberus/core/rsp.cxx
+    src/cerberus/core/rdp.cxx
+    src/cerberus/core/video_interface.cxx
+    src/cerberus/core/audio_interface.cxx
 )
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 20)

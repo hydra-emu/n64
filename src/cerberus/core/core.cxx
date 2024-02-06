@@ -1,7 +1,7 @@
+#include <cerberus/core/core.hxx>
+#include <cerberus/core/scheduler.hxx>
 #include <chrono>
-#include <core.hxx>
 #include <iostream>
-#include <n64_scheduler.hxx>
 
 // TODO: cmake option
 // #define PROFILING

@@ -1,11 +1,11 @@
 #pragma once
 
 #include <array>
+#include <cerberus/core/audio_interface.hxx>
+#include <cerberus/core/rdp.hxx>
+#include <cerberus/core/rsp.hxx>
+#include <cerberus/core/video_interface.hxx>
 #include <cstdint>
-#include <n64_ai.hxx>
-#include <n64_rdp.hxx>
-#include <n64_rsp.hxx>
-#include <n64_vi.hxx>
 
 namespace cerberus
 {

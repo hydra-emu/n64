@@ -1,13 +1,13 @@
 #include <algorithm>
-#include <compatibility.hxx>
+#include <cerberus/common/compatibility.hxx>
+#include <cerberus/common/log.hxx>
+#include <cerberus/core/addresses.hxx>
+#include <cerberus/core/rdp.hxx>
+#include <cerberus/core/rsp.hxx>
 #include <cstdint>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <n64_addresses.hxx>
-#include <n64_log.hxx>
-#include <n64_rdp.hxx>
-#include <n64_rsp.hxx>
 #include <sstream>
 
 #define RSP_LOGGING false

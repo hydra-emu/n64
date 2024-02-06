@@ -1,25 +1,25 @@
 #pragma once
 
 #include <array>
+#include <cerberus/common/compatibility.hxx>
+#include <cerberus/common/log.hxx>
+#include <cerberus/core/addresses.hxx>
+#include <cerberus/core/rcp.hxx>
+#include <cerberus/core/scheduler.hxx>
+#include <cerberus/core/types.hxx>
 #include <cfenv>
 #include <cfloat>
 #include <chrono>
 #include <cmath>
-#include <compatibility.hxx>
 #include <concepts>
 #include <cstdint>
 #include <filesystem>
 #include <limits>
 #include <memory>
-#include <n64_addresses.hxx>
-#include <n64_log.hxx>
-#include <n64_rcp.hxx>
-#include <n64_types.hxx>
 #include <queue>
 #include <vector>
 
-#include "hydra/core.hxx"
-#include "n64_scheduler.hxx"
+#include <hydra/core.hxx>
 
 #define KB(x) (static_cast<size_t>(x << 10))
 #define check_bit(x, y) ((x) & (1u << y))

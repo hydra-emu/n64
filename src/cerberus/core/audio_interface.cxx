@@ -1,8 +1,8 @@
 #include <algorithm>
+#include <cerberus/core/addresses.hxx>
+#include <cerberus/core/audio_interface.hxx>
 #include <cstdint>
 #include <fstream>
-#include <n64_addresses.hxx>
-#include <n64_ai.hxx>
 
 namespace cerberus
 {

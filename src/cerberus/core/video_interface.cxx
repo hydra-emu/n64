@@ -1,8 +1,8 @@
-#include <compatibility.hxx>
-#include <n64_addresses.hxx>
-#include <n64_log.hxx>
-#include <n64_types.hxx>
-#include <n64_vi.hxx>
+#include <cerberus/common/compatibility.hxx>
+#include <cerberus/common/log.hxx>
+#include <cerberus/core/addresses.hxx>
+#include <cerberus/core/types.hxx>
+#include <cerberus/core/video_interface.hxx>
 
 namespace cerberus
 {

@@ -1,15 +1,15 @@
 #include <bitset>
 #include <cassert>
+#include <cerberus/common/compatibility.hxx>
+#include <cerberus/core/addresses.hxx>
+#include <cerberus/core/vr4300i.hxx>
 #include <cmath>
-#include <compatibility.hxx>
 #include <cstring>
 #include <fstream>
 #include <functional>
 #include <iomanip>
 #include <iostream>
 #include <limits>
-#include <n64_addresses.hxx>
-#include <n64_cpu.hxx>
 #include <random>
 #include <sstream>
 

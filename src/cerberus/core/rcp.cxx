@@ -1,4 +1,4 @@
-#include <n64_rcp.hxx>
+#include <cerberus/core/rcp.hxx>
 
 namespace cerberus
 {

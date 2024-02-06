@@ -1,8 +1,8 @@
 #pragma once
 
+#include <cerberus/core/types.hxx>
 #include <cstring>
 #include <functional>
-#include <n64_types.hxx>
 #include <utility>
 #include <vector>
 

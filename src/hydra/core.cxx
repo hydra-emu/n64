@@ -1,4 +1,4 @@
-#include <core.hxx>
+#include <cerberus/core/core.hxx>
 #include <cstdint>
 #include <hydra/core.hxx>
 

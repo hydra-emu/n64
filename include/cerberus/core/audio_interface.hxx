@@ -1,11 +1,11 @@
 #pragma once
 
 #include <array>
+#include <cerberus/common/log.hxx>
+#include <cerberus/core/types.hxx>
 #include <cstdint>
 #include <cstring>
 #include <functional>
-#include <n64_log.hxx>
-#include <n64_types.hxx>
 #include <vector>
 
 namespace cerberus

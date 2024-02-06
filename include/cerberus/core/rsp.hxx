@@ -1,7 +1,7 @@
 #pragma once
 
+#include <cerberus/core/types.hxx>
 #include <functional>
-#include <n64_types.hxx>
 
 namespace cerberus
 {

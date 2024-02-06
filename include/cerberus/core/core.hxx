@@ -1,12 +1,12 @@
 #pragma once
 
+#include <cerberus/core/config.hxx>
+#include <cerberus/core/rcp.hxx>
+#include <cerberus/core/scheduler.hxx>
+#include <cerberus/core/vr4300i.hxx>
 #include <cstdint>
 #include <filesystem>
 #include <hydra/core.hxx>
-#include <n64_config.hxx>
-#include <n64_cpu.hxx>
-#include <n64_rcp.hxx>
-#include <n64_scheduler.hxx>
 #include <string>
 
 namespace cerberus
